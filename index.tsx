@@ -1,7 +1,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App from './App'; 
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -9,8 +9,12 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+
+// RizqDaan Client App Build
+// Forcing User App as the exclusive entry point
 root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
+
