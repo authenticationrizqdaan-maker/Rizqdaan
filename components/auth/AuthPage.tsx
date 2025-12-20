@@ -3,9 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../../types';
 import { PAKISTAN_LOCATIONS } from '../../constants';
 import { auth, googleProvider, db } from '../../firebaseConfig';
-// FIX: Using named imports for modular Firebase Auth SDK to fix "Property does not exist" errors
-import { signInWithPopup, sendPasswordResetEmail, signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 type AuthStep = 'form' | 'otp' | 'google_details';
 
@@ -39,21 +38,15 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
-  // --- REAL AUTH HANDLERS ---
-
   const handleGoogleAuth = async () => {
       if (!auth) return;
       try {
           const result = await signInWithPopup(auth, googleProvider);
           const user = result.user;
           
-          // Check if user exists in Firestore
           if(db) {
               const userDoc = await getDoc(doc(db, "users", user.uid));
-              if (userDoc.exists()) {
-                  // Existing user - Login logic is handled by App.tsx listener
-              } else {
-                  // New user - redirect to complete profile
+              if (!userDoc.exists()) {
                   setGoogleData({
                       name: user.displayName || '',
                       email: user.email || '',
@@ -88,7 +81,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
     if (otp === '123456' && pendingUser) {
       onVerifyAndLogin(pendingUser.id);
     } else {
-      setError('Invalid OTP. Use 123456 for testing.');
+      setError('Invalid OTP. Please check the code.');
     }
   };
 
@@ -118,28 +111,11 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
     
     if (!result.success) {
       const msg = result.message.toLowerCase();
-      if (
-          msg.includes('auth/invalid-credential') || 
-          msg.includes('auth/wrong-password') || 
-          msg.includes('auth/user-not-found') ||
-          msg.includes('invalid-credential')
-      ) {
-          setError("Incorrect email or password. Please try again.");
-      } else if (msg.includes('auth/too-many-requests')) {
-          setError("Too many failed attempts. Please reset your password or try later.");
+      if (msg.includes('invalid-credential') || msg.includes('wrong-password') || msg.includes('user-not-found')) {
+          setError("Incorrect email or password.");
       } else {
-          const cleanMsg = result.message.replace(/Firebase: Error \((.+)\)\.?/i, '$1').replace('auth/', '');
-          setError(cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1).replace(/-/g, ' '));
+          setError(result.message);
       }
-    }
-  };
-
-  const handleAdminDemoLogin = async () => {
-    setIsLoading(true);
-    const result = await onLogin('admin@rizqdaan.com', 'admin');
-    setIsLoading(false);
-    if (!result.success) {
-      setError(result.message);
     }
   };
 
@@ -158,9 +134,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
       return;
     }
 
-    // FIX: Password length validation
     if (password.length < 6) {
-        setError('Password must be at least 6 characters long.');
+        setError('Password must be at least 6 characters.');
         return;
     }
 
@@ -170,7 +145,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
 
     if (result.success && result.user) {
       setPendingUser(result.user);
-      setInfo('Account created! Please verify your phone number.');
+      setInfo('Account created! Please verify your number.');
       setStep('otp');
     } else {
       setError(result.message);
@@ -180,51 +155,39 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
   const handleGoogleDetailsSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
-      
       if (!selectedProvince || !selectedCity || !manualAddress) {
           setError('Please complete the full Shop Address.');
           return;
       }
       const fullShopAddress = `${manualAddress}, ${selectedCity}, ${selectedProvince}`;
-
       if (!googleData || !phone || !shopName) {
-          setError('Please fill in all remaining fields.');
+          setError('Please fill in all fields.');
           return;
       }
       setIsLoading(true);
       const result = await onSignup({ ...googleData, phone, shopName, shopAddress: fullShopAddress, password: `google_${googleData.googleId}`, referralCodeInput });
       setIsLoading(false);
-      
       if (result.success && result.user) {
           setPendingUser(result.user);
-          setInfo('Account created! Please verify your phone number.');
           setStep('otp');
       } else {
           setError(result.message);
       }
   }
   
-  // Reusable Address Inputs Component
   const LocationInputs = () => (
       <div className="space-y-3 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shop Location</label>
            <input type="text" value="Pakistan" disabled className="w-full px-3 py-2 bg-gray-200 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md text-gray-500 text-sm" />
-           
            <select 
               value={selectedProvince}
-              onChange={(e) => {
-                  setSelectedProvince(e.target.value);
-                  setSelectedCity(''); 
-              }}
+              onChange={(e) => { setSelectedProvince(e.target.value); setSelectedCity(''); }}
               className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary focus:border-primary text-sm"
               required
            >
                <option value="">Select Province</option>
-               {Object.keys(PAKISTAN_LOCATIONS).map(prov => (
-                   <option key={prov} value={prov}>{prov}</option>
-               ))}
+               {Object.keys(PAKISTAN_LOCATIONS).map(prov => <option key={prov} value={prov}>{prov}</option>)}
            </select>
-
            <select 
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
@@ -233,11 +196,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
               required
            >
                <option value="">{selectedProvince ? "Select City" : "Select Province First"}</option>
-               {selectedProvince && PAKISTAN_LOCATIONS[selectedProvince]?.map(city => (
-                   <option key={city} value={city}>{city}</option>
-               ))}
+               {selectedProvince && PAKISTAN_LOCATIONS[selectedProvince]?.map(city => <option key={city} value={city}>{city}</option>)}
            </select>
-
            <input
               type="text"
               value={manualAddress}
@@ -269,8 +229,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
                 type="text"
                 value={referralCodeInput}
                 onChange={(e) => setReferralCodeInput(e.target.value)}
-                placeholder="Enter friend's code to get Rs.50"
-                className="block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Enter friend's code to get bonus"
+                className="block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-md shadow-sm outline-none text-sm"
               />
           </div>
       )}
@@ -281,15 +241,9 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
           </div>
       )}
 
-      <button type="submit" className="w-full py-3.5 px-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition-all transform active:scale-[0.98] flex justify-center" disabled={isLoading}>
+      <button type="submit" className="w-full py-3.5 px-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-dark transition-all flex justify-center" disabled={isLoading}>
         {isLoading ? 'Loading...' : (isLogin ? 'Login' : 'Sign Up & Earn Bonus')}
       </button>
-
-      {isLogin && (
-        <div className="flex justify-center mt-2">
-            <button type="button" onClick={handleAdminDemoLogin} className="text-sm text-gray-500 hover:underline">(Demo) Login as Admin</button>
-        </div>
-      )}
 
       {!isLogin && (
           <>
@@ -320,23 +274,12 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
   const renderGoogleDetailsForm = () => (
       <div>
         <h3 className="text-xl font-bold">Complete Your Registration</h3>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">We got your details from Google. Please provide the rest.</p>
         <form onSubmit={handleGoogleDetailsSubmit} className="space-y-4 mt-6">
             <InputField id="name" label="Full Name" type="text" value={googleData?.name || ''} disabled />
             <InputField id="email" label="Email Address" type="email" value={googleData?.email || ''} disabled />
             <InputField id="phone" label="Phone Number" type="tel" value={phone} onChange={setPhone} required />
             <InputField id="shopName" label="Shop Name" type="text" value={shopName} onChange={setShopName} required />
             <LocationInputs />
-            <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
-                <label className="block text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-1">Referral Code (Optional)</label>
-                <input
-                    type="text"
-                    value={referralCodeInput}
-                    onChange={(e) => setReferralCodeInput(e.target.value)}
-                    placeholder="Enter friend's code to get Rs.50"
-                    className="block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                />
-            </div>
             <button type="submit" className="w-full py-3 px-4 bg-primary text-white font-bold rounded-xl shadow hover:bg-primary-dark transition-colors" disabled={isLoading}>
                 {isLoading ? 'Processing...' : 'Submit & Verify'}
             </button>
@@ -373,7 +316,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onSignup, onVerifyAndLogin
   );
 };
 
-// Helper component for form fields
 const InputField = ({ id, label, type, value, onChange, required=false, disabled=false }: { id: string, label: string, type: string, value: string, onChange?: (val: string) => void, required?: boolean, disabled?: boolean }) => (
   <div>
     <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
@@ -390,3 +332,4 @@ const InputField = ({ id, label, type, value, onChange, required=false, disabled
 );
 
 export default AuthPage;
+
