@@ -1,3 +1,4 @@
+
 name: Build Android App
 
 on:
@@ -28,8 +29,10 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Generate Android Icons from Assets Folder
+      - name: Generate Android Icons
         run: |
+          mkdir -p assets
+          cp icon.png assets/icon.png || true
           npm install @capacitor/assets --save-dev
           npx capacitor-assets generate --android || true
 
