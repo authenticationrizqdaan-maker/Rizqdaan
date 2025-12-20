@@ -1,4 +1,3 @@
-
 name: Build Android App
 
 on:
@@ -29,13 +28,6 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Generate Android Icons
-        run: |
-          mkdir -p assets
-          cp icon.png assets/icon.png || true
-          npm install @capacitor/assets --save-dev
-          npx capacitor-assets generate --android || true
-
       - name: Build Web Assets
         run: npm run build
         env:
@@ -44,7 +36,29 @@ jobs:
       - name: Initialize Android Platform
         run: |
           npx cap add android || true
+          
+          # 📍 INJECT GPS PERMISSIONS INTO ANDROID MANIFEST
+          # This ensures the app can actually talk to the phone's GPS hardware
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />' android/app/src/main/AndroidManifest.xml
+          
           npx cap sync android
+
+      - name: Generate Android Icons & Splash
+        run: |
+          # 🎨 PREPARE ASSETS FOLDER
+          # We provide the icon in multiple formats to ensure the generator finds it
+          mkdir -p assets
+          cp icon.png assets/icon.png
+          cp icon.png assets/logo.png
+          cp icon.png assets/icon-only.png
+          cp icon.png assets/icon-foreground.png
+          
+          # Create a dummy background for adaptive icons (white)
+          # This prevents the "Default Capacitor Icon" from taking over
+          echo "white" > assets/icon-background.png || true
+          
+          # Generate icons - Force generation to overwrite defaults
+          npx capacitor-assets generate --android
 
       - name: Build APK (Debug)
         run: |
