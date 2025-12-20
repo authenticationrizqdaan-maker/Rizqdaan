@@ -28,11 +28,6 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Generate Android Icons from Assets Folder
-        run: |
-          npm install @capacitor/assets --save-dev
-          npx capacitor-assets generate --android || true
-
       - name: Build Web Assets
         run: npm run build
         env:
@@ -40,8 +35,30 @@ jobs:
 
       - name: Initialize Android Platform
         run: |
+          # 1. Add the android folder if it doesn't exist
           npx cap add android || true
+          
+          # 2. Prepare the assets folder for the icon generator
+          # The generator looks specifically for an 'assets' or 'resources' folder
+          mkdir -p assets
+          cp icon.png assets/icon.png || true
+          cp icon.png assets/logo.png || true
+          
+          # 3. Sync the project to ensure all native files are mapped
           npx cap sync android
+
+      - name: Generate Native Android Icons
+        run: |
+          # 4. Generate the actual mipmap files inside the android/ folder
+          # This must happen AFTER 'cap add android'
+          npx capacitor-assets generate --android
+
+      - name: Inject Android Permissions (GPS & Camera)
+        run: |
+          # 5. Inject required permissions into the AndroidManifest.xml
+          # This fixes the GPS issue by declaring the hardware requirement
+          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />' $MANIFEST_PATH
 
       - name: Build APK (Debug)
         run: |
