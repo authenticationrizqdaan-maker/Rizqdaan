@@ -1,18 +1,19 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CATEGORIES, PAKISTAN_LOCATIONS } from '../../constants';
+import { CATEGORIES as DEFAULT_CATEGORIES, PAKISTAN_LOCATIONS, ICONS } from '../../constants';
 import { Listing, Category, HomeBanner } from '../../types';
 import ListingCard from '../common/ListingCard';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { Geolocation } from '@capacitor/geolocation';
 
 interface HomePageProps {
   listings: Listing[];
+  categories?: Category[];
   onNavigate: (view: 'listings' | 'details' | 'subcategories', payload?: { listing?: Listing; category?: Category; query?: string }) => void;
   onSaveSearch: (query: string) => void;
 }
 
-// Helper to shuffle array for random listings
 const shuffleArray = (array: any[]) => {
   let currentIndex = array.length, randomIndex;
   while (currentIndex !== 0) {
@@ -23,18 +24,17 @@ const shuffleArray = (array: any[]) => {
   return array;
 };
 
-// Fallback Banners if DB is empty
 const DEFAULT_BANNERS: HomeBanner[] = [
     { id: '1', title: "MEGA SALE", subtitle: "Up to 70% OFF on Electronics", color: "from-blue-600 to-blue-800", icon: "⚡", isActive: true, order: 0 },
     { id: '2', title: "FRESH FOOD", subtitle: "Order Home Chef Meals Today", color: "from-orange-500 to-red-500", icon: "🍔", isActive: true, order: 1 },
     { id: '3', title: "FASHION WEEK", subtitle: "New Summer Collection Arrival", color: "from-pink-500 to-rose-500", icon: "👗", isActive: true, order: 2 },
 ];
 
-const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch }) => {
+const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNavigate, onSaveSearch }) => {
   const [banners, setBanners] = useState<HomeBanner[]>(DEFAULT_BANNERS);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  
-  // Priority: Is Promoted -> Newest
+  const displayCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+
   const sortedListings = [...listings].sort((a, b) => {
       if (a.isPromoted && !b.isPromoted) return -1;
       if (!a.isPromoted && b.isPromoted) return 1;
@@ -48,7 +48,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // --- FILTER STATE ---
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [locationData, setLocationData] = useState({ province: '', city: '', isGps: false });
   const [filters, setFilters] = useState({
@@ -58,27 +57,20 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
       onSale: false
   });
   const [gpsLoading, setGpsLoading] = useState(false);
-
-  // Touch state for swipe
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  // --- FETCH BANNERS ---
   useEffect(() => {
       if (!db) return;
       const q = query(collection(db, 'banners'), where('isActive', '==', true));
-      
       const unsub = onSnapshot(q, (snap) => {
           let fetchedBanners = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as HomeBanner));
-          
           if (fetchedBanners.length > 0) {
               fetchedBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
               setBanners(fetchedBanners);
           } else {
               setBanners(DEFAULT_BANNERS);
           }
-      }, (err) => {
-          console.error("Banners fetch error:", err.message);
       });
       return () => unsub();
   }, []);
@@ -89,7 +81,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
     }
   }, [listings]); 
 
-  // --- BANNER AUTO-SCROLL LOGIC ---
   useEffect(() => {
       if (banners.length <= 1) return;
       const interval = setInterval(() => {
@@ -110,26 +101,15 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
   const onTouchEnd = () => {
       if (!touchStart || !touchEnd || banners.length <= 1) return;
       const distance = touchStart - touchEnd;
-      const isLeftSwipe = distance > 50;
-      const isRightSwipe = distance < -50;
-
-      if (isLeftSwipe) {
-          setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
-      }
-      if (isRightSwipe) {
-          setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
-      }
+      if (distance > 50) setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
+      if (distance < -50) setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
   }
 
   const handleBannerClick = (banner: HomeBanner) => {
       if (!banner.link) return;
-      
       const targetListing = listings.find(l => l.id === banner.link);
-      if (targetListing) {
-          onNavigate('details', { listing: targetListing });
-      } else {
-          onNavigate('listings', { query: banner.link });
-      }
+      if (targetListing) onNavigate('details', { listing: targetListing });
+      else onNavigate('listings', { query: banner.link });
   };
 
   const loadMoreListings = useCallback(() => {
@@ -149,24 +129,21 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
   
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      onNavigate('listings', { query: searchQuery });
-    }
+    if (searchQuery.trim()) onNavigate('listings', { query: searchQuery });
   };
 
-  const handleGetLocation = () => {
-      if (!navigator.geolocation) {
-          alert("Geolocation is not supported by this browser.");
-          return;
-      }
+  const handleGetLocation = async () => {
       setGpsLoading(true);
-      navigator.geolocation.getCurrentPosition((pos) => {
-          setGpsLoading(false);
+      try {
+          const coordinates = await Geolocation.getCurrentPosition();
           setLocationData({ province: '', city: '', isGps: true });
-      }, (err) => {
+          // Future expansion: Reverse geocode coordinates to City/Province
+      } catch (err) {
+          console.error("Geolocation error", err);
+          alert("Could not get location. Please enable GPS and allow permissions.");
+      } finally {
           setGpsLoading(false);
-          alert("Could not get location. Please enable GPS.");
-      });
+      }
   };
 
   const handleApplyFilters = () => {
@@ -175,9 +152,16 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
       if (locationData.city) filterSummary.push(locationData.city);
       if (filters.verifiedOnly) filterSummary.push("Verified");
       if (filters.onSale) filterSummary.push("On Sale");
-      
       const query = filterSummary.length > 0 ? filterSummary.join(" ") : "All Listings";
       onNavigate('listings', { query });
+  };
+
+  const renderIcon = (icon: any) => {
+      if (React.isValidElement(icon)) return icon;
+      if (typeof icon === 'string' && ICONS[icon as keyof typeof ICONS]) {
+          return ICONS[icon as keyof typeof ICONS];
+      }
+      return <svg className="w-full h-full" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>;
   };
 
   useEffect(() => {
@@ -191,8 +175,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
 
   return (
     <div className="space-y-3">
-      
-      {/* --- COMPACT HEADER & SEARCH --- */}
       <div className="bg-primary dark:bg-dark-primary py-2 px-4 rounded-b-xl shadow-sm -mx-4 mb-2 transition-all sticky top-0 z-40">
         <div className="container mx-auto max-w-4xl">
             <div className="flex items-center justify-between mb-2">
@@ -222,7 +204,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
         </div>
       </div>
 
-      {/* --- BANNER CAROUSEL (DYNAMIC) --- */}
       <div 
         className="relative w-full overflow-hidden rounded-xl shadow-sm group h-36 sm:h-48 md:h-56 touch-pan-y cursor-pointer"
         onTouchStart={onTouchStart}
@@ -239,13 +220,11 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
                     onClick={() => handleBannerClick(banner)}
                     className={`min-w-full h-full flex items-center justify-between px-5 md:px-12 text-white relative overflow-hidden`}
                   >
-                      {/* Background Layer */}
                       {banner.imageUrl ? (
                           <img src={banner.imageUrl} className="absolute inset-0 w-full h-full object-cover z-0" alt="" />
                       ) : (
                           <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} z-0`}></div>
                       )}
-
                       <div className="z-10 max-w-[65%]">
                           {banner.title && (
                               <>
@@ -253,63 +232,43 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
                                   <h2 className="text-xl md:text-3xl font-extrabold mb-1 drop-shadow-md leading-tight uppercase">{banner.title}</h2>
                               </>
                           )}
-                          {banner.subtitle && (
-                              <p className="text-xs md:text-sm font-medium opacity-90 mb-3 drop-shadow-sm">{banner.subtitle}</p>
-                          )}
+                          {banner.subtitle && <p className="text-xs md:text-sm font-medium opacity-90 mb-3 drop-shadow-sm">{banner.subtitle}</p>}
                       </div>
-                      
-                      {!banner.imageUrl && (
-                          <div className="text-[60px] md:text-[100px] opacity-20 absolute right-2 md:right-10 rotate-12 pointer-events-none select-none z-10">
-                            {banner.icon}
-                          </div>
-                      )}
+                      {!banner.imageUrl && <div className="text-[60px] md:text-[100px] opacity-20 absolute right-2 md:right-10 rotate-12 pointer-events-none select-none z-10">{banner.icon}</div>}
                   </div>
               ))}
           </div>
-
           {banners.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
                 {banners.map((_, index) => (
-                    <button
-                        key={index}
-                        onClick={() => setCurrentBannerIndex(index)}
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                            index === currentBannerIndex ? 'bg-white w-4' : 'bg-white/50'
-                        }`}
-                    />
+                    <button key={index} onClick={() => setCurrentBannerIndex(index)} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${index === currentBannerIndex ? 'bg-white w-4' : 'bg-white/50'}`} />
                 ))}
             </div>
           )}
       </div>
 
-      {/* --- CATEGORIES --- */}
       <div>
         <div className="flex justify-between items-center mb-2 px-1">
             <h3 className="text-sm font-bold text-gray-800 dark:text-white">Categories</h3>
             <span className="text-[10px] text-primary font-medium cursor-pointer" onClick={() => onNavigate('listings')}>View All</span>
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-2">
-          {CATEGORIES.slice(0, 8).map((category) => (
+          {displayCategories.slice(0, 8).map((category) => (
             <div
               key={category.id}
               onClick={() => onNavigate('subcategories', { category })}
               className="group flex flex-col items-center p-1.5 bg-white dark:bg-dark-surface rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer text-center border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
             >
-              <div className="h-8 w-8 flex items-center justify-center text-primary dark:text-gray-200 mb-1">
-                {category.icon}
-              </div>
+              <div className="h-8 w-8 flex items-center justify-center text-primary dark:text-gray-200 mb-1">{renderIcon(category.icon)}</div>
               <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 leading-tight line-clamp-1">{category.name}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* --- FEATURED LISTINGS --- */}
       <div>
         <div className="flex justify-between items-center mb-2 mt-2 px-1">
-            <h2 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-1">
-                🔥 Featured Listings
-            </h2>
+            <h2 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-1">🔥 Featured Listings</h2>
             <span className="text-[10px] text-primary font-medium cursor-pointer" onClick={() => onNavigate('listings')}>See All</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -321,7 +280,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
 
       <hr className="border-gray-100 dark:border-gray-800 my-2" />
 
-      {/* --- RANDOM LISTINGS --- */}
       <div>
         <h2 className="text-sm font-bold text-gray-800 dark:text-white mb-2 px-1">Fresh Recommendations</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -337,7 +295,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
         </div>
       )}
 
-      {/* Filter Modal */}
       {isFilterOpen && (
           <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsFilterOpen(false)}></div>
@@ -356,19 +313,6 @@ const HomePage: React.FC<HomePageProps> = ({ listings, onNavigate, onSaveSearch 
                               <option value="">Select Province</option>
                               {Object.keys(PAKISTAN_LOCATIONS).map(p => <option key={p} value={p}>{p}</option>)}
                           </select>
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Options</label>
-                          <div className="space-y-2">
-                              <label className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                                  <span className="text-sm font-medium">Verified Only</span>
-                                  <input type="checkbox" checked={filters.verifiedOnly} onChange={() => setFilters({...filters, verifiedOnly: !filters.verifiedOnly})} className="w-4 h-4 text-primary rounded" />
-                              </label>
-                              <label className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                                  <span className="text-sm font-medium">Free Delivery</span>
-                                  <input type="checkbox" checked={filters.freeDelivery} onChange={() => setFilters({...filters, freeDelivery: !filters.freeDelivery})} className="w-4 h-4 text-primary rounded" />
-                              </label>
-                          </div>
                       </div>
                   </div>
                   <div className="p-4 border-t border-gray-100 flex gap-2">
