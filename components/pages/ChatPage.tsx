@@ -209,9 +209,10 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100dvh-82px)] md:h-[calc(100vh-140px)] bg-white dark:bg-dark-surface rounded-xl shadow-lg overflow-hidden animate-fade-in border border-gray-100 dark:border-gray-700">
-      <div className={`w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col ${activeConversationId ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 space-y-4">
+    <div className="flex flex-col md:flex-row h-[calc(100dvh-120px)] md:h-[calc(100vh-160px)] bg-white dark:bg-dark-surface rounded-xl shadow-lg overflow-hidden animate-fade-in border border-gray-100 dark:border-gray-700">
+      {/* Sidebar / Alert List */}
+      <div className={`w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col min-h-0 ${activeConversationId ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 space-y-4 flex-shrink-0">
            <div className="flex items-center gap-2">
                <button onClick={() => onNavigate('home')} className="md:hidden p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7 7-7" /></svg>
@@ -235,9 +236,10 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
            </div>
         </div>
         
-        <div className="flex-grow overflow-y-auto">
+        {/* Scrollable List Container */}
+        <div className="flex-grow overflow-y-auto min-h-0 overscroll-contain">
            {activeTab === 'messages' && (
-                <>
+                <div className="flex flex-col">
                     {loadingChats ? (
                         <div className="flex justify-center p-4"><span className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></span></div>
                     ) : conversations.length === 0 ? (
@@ -273,11 +275,11 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
                             </button>
                         ))
                     )}
-                </>
+                </div>
            )}
 
            {activeTab === 'alerts' && (
-               <div className="space-y-0">
+               <div className="flex flex-col">
                    {loadingNotifs ? (
                        <div className="flex justify-center p-4"><span className="animate-spin h-6 w-6 border-2 border-primary rounded-full border-t-transparent"></span></div>
                    ) : notifications.length === 0 ? (
@@ -323,7 +325,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
         </div>
       </div>
 
-      <div className={`w-full md:w-2/3 flex flex-col h-full ${!activeConversationId ? 'hidden md:flex' : 'flex'}`}>
+      {/* Main Chat Column */}
+      <div className={`w-full md:w-2/3 flex flex-col h-full min-h-0 ${!activeConversationId ? 'hidden md:flex' : 'flex'}`}>
         {activeTab === 'alerts' && !activeConversationId ? (
              <div className="flex flex-col items-center justify-center h-full text-gray-400 p-6 text-center bg-gray-50/50 dark:bg-gray-900/50">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-full mb-4 shadow-sm">
@@ -336,6 +339,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
             </div>
         ) : activeConversationId ? (
             <>
+                {/* Chat Header */}
                 <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center bg-gray-50 dark:bg-gray-800 flex-shrink-0 z-10">
                     <button onClick={() => setActiveConversationId(null)} className="md:hidden mr-3 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
                         <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -347,7 +351,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-100 dark:bg-gray-900 flex flex-col">
+                {/* Messages Scroller */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-100 dark:bg-gray-900 flex flex-col min-h-0 overscroll-contain">
                     {messages.map(msg => {
                         const isMe = msg.senderId === currentUser.id;
                         const timestamp = msg.timestamp 
@@ -383,6 +388,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ currentUser, targetUser, onNavigate
                     <div ref={messagesEndRef} />
                 </div>
 
+                {/* Input Area */}
                 <form onSubmit={handleSendMessage} className="p-3 pr-4 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-gray-700 flex gap-2 flex-shrink-0 items-center">
                     <input
                         type="text"
