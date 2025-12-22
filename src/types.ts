@@ -187,6 +187,8 @@ export interface User {
   // New Profile Fields
   coverPictureUrl?: string;
   bio?: string;
+  // FIX: Added memberSince property to User interface
+  memberSince?: string;
   followers?: string[]; // Array of User IDs who follow this vendor
   favorites?: string[]; // Array of Listing IDs
   savedSearches?: string[]; // Array of strings
