@@ -183,6 +183,8 @@ export interface User {
   profilePictureUrl?: string;
   coverPictureUrl?: string;
   bio?: string;
+  // FIX: Added memberSince property to User interface
+  memberSince?: string;
   followers?: string[]; 
   favorites?: string[]; 
   savedSearches?: string[]; 
