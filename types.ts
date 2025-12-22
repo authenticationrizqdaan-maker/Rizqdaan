@@ -21,17 +21,17 @@ export interface Listing {
   description: string;
   type: ListingType;
   category: string;
-  price: number; 
+  price: number; // This is now the discounted/current price
   originalPrice?: number;
   itemsSold: number;
   hasFreeDelivery: boolean;
   imageUrl: string;
-  images?: string[]; 
+  images?: string[]; // Array of image URLs for gallery
   vendorId: string;
   vendorName: string;
   location: string;
-  latitude?: number; 
-  longitude?: number; 
+  latitude?: number; // GPS Latitude
+  longitude?: number; // GPS Longitude
   rating: number;
   reviews: Review[];
   contact: {
@@ -39,12 +39,13 @@ export interface Listing {
     whatsapp: string;
   };
   createdAt?: string;
+  // New Analytics Fields
   views?: number;
-  calls?: number; 
-  messages?: number; 
+  calls?: number; // Added calls tracking
+  messages?: number; // Added messages tracking
   likes?: number;
   isPromoted?: boolean;
-  activeCampaignId?: string; // New: Links listing to an active AdCampaign
+  // Expanded Status for Admin Moderation
   status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired';
 }
 
@@ -52,10 +53,10 @@ export interface HomeBanner {
     id: string;
     title: string;
     subtitle: string;
-    color: string; 
-    icon: string; 
-    imageUrl?: string; 
-    link?: string; 
+    color: string; // Gradient class e.g. "from-blue-600 to-blue-800"
+    icon: string; // Emoji
+    imageUrl?: string; // Optional custom background image
+    link?: string; // Listing ID or Search Query
     isActive: boolean;
     order: number;
 }
@@ -68,7 +69,7 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon?: ReactElement | string; 
+  icon?: ReactElement | string; // Changed to allow string for stored icons
   subcategories: SubCategory[];
 }
 
@@ -86,7 +87,7 @@ export interface Transaction {
   date: string;
   status: 'completed' | 'pending' | 'failed';
   description?: string;
-  userId?: string; 
+  userId?: string; // Optional linkage for global ledger
   userName?: string;
 }
 
@@ -108,7 +109,7 @@ export interface DepositRequest {
     userId: string;
     userName: string;
     amount: number;
-    method: string; 
+    method: string; // 'JazzCash' | 'EasyPaisa' | 'Bank'
     transactionId: string;
     senderPhone: string;
     screenshotUrl?: string;
@@ -122,13 +123,13 @@ export interface PaymentInfo {
     accountTitle: string;
     accountNumber: string;
     instructions?: string;
-    customNote?: string; 
+    customNote?: string; // New field for admin custom messages
 }
 
 export interface ReferralSettings {
-    inviterBonus: number; 
-    inviteeBonus: number; 
-    badgeThreshold: number; 
+    inviterBonus: number; // Amount given to person who invited
+    inviteeBonus: number; // Amount given to new user
+    badgeThreshold: number; // Number of invites needed for Star Badge
     isActive: boolean;
 }
 
@@ -148,6 +149,7 @@ export interface AdCampaign {
     targetLocation: string; 
     priority?: 'high' | 'normal';
     
+    // Live Analytics
     impressions: number;
     clicks: number;
     ctr: number; 
@@ -181,7 +183,6 @@ export interface User {
   profilePictureUrl?: string;
   coverPictureUrl?: string;
   bio?: string;
-  memberSince?: string;
   followers?: string[]; 
   favorites?: string[]; 
   savedSearches?: string[]; 
