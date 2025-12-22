@@ -1,6 +1,8 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Listing } from '../../types';
+import { db } from '../../firebaseConfig';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
 interface ListingCardProps {
   listing: Listing;
@@ -8,6 +10,20 @@ interface ListingCardProps {
 }
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => {
+  
+  // Impression Tracking Logic
+  useEffect(() => {
+    if (listing.isPromoted && listing.activeCampaignId && db) {
+        // Track impression only once per mount of this card
+        const campaignRef = doc(db, 'campaigns', listing.activeCampaignId);
+        updateDoc(campaignRef, {
+            impressions: increment(1)
+        }).catch(() => {
+            // Silently fail to not interrupt user experience
+        });
+    }
+  }, [listing.id, listing.isPromoted, listing.activeCampaignId]);
+
   const StarRating = ({ rating, reviewsCount }: { rating: number, reviewsCount: number }) => {
     return (
       <div className="flex items-center gap-1">
@@ -29,7 +45,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => 
       className={`group bg-white dark:bg-dark-surface rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col relative ${listing.isPromoted ? 'ring-1 ring-accent-yellow/50' : ''}`}
       onClick={() => onViewDetails(listing)}
     >
-      {/* Image Container with Fixed Aspect Ratio */}
+      {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-900">
         <img 
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
@@ -53,7 +69,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => 
             )}
         </div>
 
-        {/* Type Badge (Bottom Left) */}
+        {/* Type Badge */}
         <div className="absolute bottom-2 left-2">
              <span className="bg-black/40 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium uppercase tracking-widest">
                 {listing.category.split(' ')[0]}
@@ -63,7 +79,6 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => 
       
       {/* Content Area */}
       <div className="p-3 flex flex-col flex-grow">
-        {/* Price Row */}
         <div className="flex items-center justify-between mb-1">
             <p className="text-base font-bold text-primary dark:text-white">Rs. {listing.price.toLocaleString()}</p>
             <button className="text-gray-400 hover:text-red-500 transition-colors">
@@ -71,17 +86,14 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => 
             </button>
         </div>
 
-        {/* Original Price (if any) */}
         {listing.originalPrice && (
             <p className="text-[10px] text-gray-400 line-through -mt-1 mb-1">Rs. {listing.originalPrice.toLocaleString()}</p>
         )}
 
-        {/* Title - Fixed height with line clamp for alignment */}
         <h3 className="text-xs font-medium text-gray-700 dark:text-gray-200 leading-tight line-clamp-2 mb-3 min-h-[2.5rem]">
             {listing.title}
         </h3>
         
-        {/* Footer info */}
         <div className="mt-auto border-t border-gray-50 dark:border-gray-800 pt-2 flex items-center justify-between">
             <StarRating rating={listing.rating} reviewsCount={listing.reviews?.length || 0} />
             <div className="flex items-center text-[10px] text-gray-400 gap-0.5 max-w-[50%]">
