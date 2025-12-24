@@ -21,17 +21,17 @@ export interface Listing {
   description: string;
   type: ListingType;
   category: string;
-  price: number; 
+  price: number; // This is now the discounted/current price
   originalPrice?: number;
   itemsSold: number;
   hasFreeDelivery: boolean;
   imageUrl: string;
-  images?: string[]; 
+  images?: string[]; // Array of image URLs for gallery
   vendorId: string;
   vendorName: string;
   location: string;
-  latitude?: number; 
-  longitude?: number; 
+  latitude?: number; // GPS Latitude
+  longitude?: number; // GPS Longitude
   rating: number;
   reviews: Review[];
   contact: {
@@ -39,11 +39,13 @@ export interface Listing {
     whatsapp: string;
   };
   createdAt?: string;
+  // New Analytics Fields
   views?: number;
-  calls?: number; 
-  messages?: number; 
+  calls?: number; // Added calls tracking
+  messages?: number; // Added messages tracking
   likes?: number;
   isPromoted?: boolean;
+  // Expanded Status for Admin Moderation
   status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired';
 }
 
@@ -51,10 +53,10 @@ export interface HomeBanner {
     id: string;
     title: string;
     subtitle: string;
-    color: string; 
-    icon: string; 
-    imageUrl?: string; 
-    link?: string; 
+    color: string; // Gradient class e.g. "from-blue-600 to-blue-800"
+    icon: string; // Emoji
+    imageUrl?: string; // Optional custom background image
+    link?: string; // Listing ID or Search Query
     isActive: boolean;
     order: number;
 }
@@ -67,7 +69,7 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon?: ReactElement | string; 
+  icon?: ReactElement | string; // Changed to allow string for stored icons
   subcategories: SubCategory[];
 }
 
@@ -78,46 +80,6 @@ export interface Vendor {
   memberSince: string;
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  password?: string;
-  phone: string;
-  shopName: string;
-  shopAddress: string;
-  googleId?: string;
-  isVerified: boolean;
-  isBanned?: boolean; 
-  isAdmin?: boolean;
-  profilePictureUrl?: string;
-  coverPictureUrl?: string;
-  bio?: string;
-  memberSince?: string;
-  followers?: string[]; 
-  favorites?: string[]; 
-  savedSearches?: string[]; 
-  referralCode?: string; 
-  referredBy?: string | null; 
-  referralStats?: {
-      totalInvited: number;
-      totalEarned: number;
-  };
-  adminNotes?: string; 
-  wallet?: {
-    balance: number;
-    totalSpend: number;
-    pendingDeposit: number;
-    pendingWithdrawal: number;
-  };
-  walletHistory?: Transaction[]; 
-  notifications?: {
-      push: boolean;
-      email: boolean;
-      sms: boolean;
-  };
-}
-
 export interface Transaction {
   id: string;
   type: 'deposit' | 'withdrawal' | 'adjustment' | 'bonus' | 'penalty' | 'fee' | 'commission' | 'promotion' | 'referral_bonus';
@@ -125,7 +87,7 @@ export interface Transaction {
   date: string;
   status: 'completed' | 'pending' | 'failed';
   description?: string;
-  userId?: string; 
+  userId?: string; // Optional linkage for global ledger
   userName?: string;
 }
 
@@ -147,7 +109,7 @@ export interface DepositRequest {
     userId: string;
     userName: string;
     amount: number;
-    method: string; 
+    method: string; // 'JazzCash' | 'EasyPaisa' | 'Bank'
     transactionId: string;
     senderPhone: string;
     screenshotUrl?: string;
@@ -161,13 +123,13 @@ export interface PaymentInfo {
     accountTitle: string;
     accountNumber: string;
     instructions?: string;
-    customNote?: string; 
+    customNote?: string; // New field for admin custom messages
 }
 
 export interface ReferralSettings {
-    inviterBonus: number; 
-    inviteeBonus: number; 
-    badgeThreshold: number; 
+    inviterBonus: number; // Amount given to person who invited
+    inviteeBonus: number; // Amount given to new user
+    badgeThreshold: number; // Number of invites needed for Star Badge
     isActive: boolean;
 }
 
@@ -186,6 +148,8 @@ export interface AdCampaign {
     totalCost: number;
     targetLocation: string; 
     priority?: 'high' | 'normal';
+    
+    // Live Analytics
     impressions: number;
     clicks: number;
     ctr: number; 
@@ -202,6 +166,49 @@ export interface AppNotification {
     isRead: boolean;
     createdAt: string; 
     link?: string; 
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  phone: string;
+  shopName: string;
+  shopAddress: string;
+  googleId?: string;
+  isVerified: boolean;
+  isBanned?: boolean; 
+  isAdmin?: boolean;
+  profilePictureUrl?: string;
+  coverPictureUrl?: string;
+  bio?: string;
+  followers?: string[]; 
+  favorites?: string[]; 
+  savedSearches?: string[]; 
+  
+  referralCode?: string; 
+  referredBy?: string | null; 
+  referralStats?: {
+      totalInvited: number;
+      totalEarned: number;
+  };
+
+  adminNotes?: string; 
+
+  wallet?: {
+    balance: number;
+    totalSpend: number;
+    pendingDeposit: number;
+    pendingWithdrawal: number;
+  };
+  walletHistory?: Transaction[]; 
+  
+  notifications?: {
+      push: boolean;
+      email: boolean;
+      sms: boolean;
+  };
 }
 
 export interface Message {
@@ -221,22 +228,4 @@ export interface ChatConversation {
   participantNames: Record<string, string>; 
   participantPics?: Record<string, string>; 
   unreadCounts: Record<string, number>;
-}
-
-// Fix: Added HelpCategory and HelpTopic interfaces to support the Help Center functionality.
-export interface HelpCategory {
-    id: string;
-    title: string;
-    icon: string;
-    order: number;
-    isActive: boolean;
-}
-
-export interface HelpTopic {
-    id: string;
-    categoryId: string;
-    title: string;
-    content: string;
-    order: number;
-    isActive: boolean;
 }
