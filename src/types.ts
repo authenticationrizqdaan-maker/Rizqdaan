@@ -68,6 +68,29 @@ export interface Vendor {
   memberSince: string;
 }
 
+/**
+ * Fix: Added HelpCategory interface to src types for consistency
+ */
+export interface HelpCategory {
+  id: string;
+  title: string;
+  icon: string;
+  order: number;
+  isActive: boolean;
+}
+
+/**
+ * Fix: Added HelpTopic interface to src types for consistency
+ */
+export interface HelpTopic {
+  id: string;
+  categoryId: string;
+  title: string;
+  content: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface Transaction {
   id: string;
   type: 'deposit' | 'withdrawal' | 'adjustment' | 'bonus' | 'penalty' | 'fee' | 'commission' | 'promotion' | 'referral_bonus';
@@ -187,7 +210,9 @@ export interface User {
   // New Profile Fields
   coverPictureUrl?: string;
   bio?: string;
-  // FIX: Added memberSince property to User interface
+  /**
+   * Fix: Added missing memberSince property to src types for consistency
+   */
   memberSince?: string;
   followers?: string[]; // Array of User IDs who follow this vendor
   favorites?: string[]; // Array of Listing IDs
