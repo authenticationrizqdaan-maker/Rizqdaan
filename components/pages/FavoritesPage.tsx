@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, Listing } from '../../types';
+import { User, Listing, AppView, NavigatePayload } from '../../types';
 import ListingCard from '../common/ListingCard';
 import { doc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
@@ -8,53 +7,38 @@ import { db } from '../../firebaseConfig';
 interface FavoritesPageProps {
   user: User;
   listings: Listing[];
-  // Fix: Added 'listings' to allowed views and 'query' to optional payload to resolve TypeScript error on line 108
-  onNavigate: (view: 'account' | 'details' | 'listings', payload?: { listing?: Listing; query?: string }) => void;
+  onNavigate: (view: AppView, payload?: NavigatePayload) => void;
 }
 
 const FavoritesPage: React.FC<FavoritesPageProps> = ({ user, listings, onNavigate }) => {
-  // Local state to handle immediate UI updates before the parent 'user' prop updates
   const [localFavoriteIds, setLocalFavoriteIds] = useState<string[]>([]);
 
   useEffect(() => {
       setLocalFavoriteIds(user.favorites || []);
   }, [user.favorites]);
 
-  // Filter listings based on local state
   const favoriteListings = listings.filter(l => localFavoriteIds.includes(l.id));
 
   const handleRemoveFavorite = async (e: React.MouseEvent, listingId: string) => {
-      e.stopPropagation(); // Prevent navigating to details
-      
-      // 1. Optimistic Update
+      e.stopPropagation(); 
       const updatedIds = localFavoriteIds.filter(id => id !== listingId);
       setLocalFavoriteIds(updatedIds);
 
-      // 2. Update Local Storage (Sync with App.tsx)
       try {
           const demoFavs = JSON.parse(localStorage.getItem('demo_user_favorites') || '{}');
           demoFavs[user.id] = updatedIds;
           localStorage.setItem('demo_user_favorites', JSON.stringify(demoFavs));
-          
-          // Notify App to update global user state
           window.dispatchEvent(new Event('favorites_updated'));
       } catch (error: any) {
-          // Log string only to prevent circular structure errors
-          console.error("Local storage error:", error?.message || String(error));
+          console.error("Local storage error: " + (error?.message || String(error)));
       }
 
-      // 3. Update Firestore
       if (db) {
           try {
               const userRef = doc(db, 'users', user.id);
-              
-              // We don't await these to keep UI snappy, errors logged to console
               updateDoc(userRef, { favorites: arrayRemove(listingId) });
-              
-              // Ideally decrement likes on listing too, but optional for favorites view
-              // updateDoc(listingRef, { likes: increment(-1) }); 
           } catch (e: any) {
-              console.error("Error removing favorite:", e.message || String(e));
+              console.error("Firestore error: " + (e?.message || String(e)));
           }
       }
   };
@@ -80,11 +64,9 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ user, listings, onNavigat
           {favoriteListings.map((listing) => (
             <div key={listing.id} className="relative group">
                 <ListingCard listing={listing} onViewDetails={(l) => onNavigate('details', { listing: l })} />
-                
-                {/* Remove Button Overlay */}
                 <button
                     onClick={(e) => handleRemoveFavorite(e, listing.id)}
-                    className="absolute top-2 right-2 p-1.5 bg-white/90 dark:bg-gray-800/90 rounded-full text-red-500 shadow-sm hover:bg-red-50 dark:hover:bg-gray-700 transition-all z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    className="absolute top-2 right-2 p-1.5 bg-white/90 dark:bg-gray-800/90 rounded-full text-red-500 shadow-sm hover:bg-red-50 dark:hover:bg-gray-700 transition-all z-10"
                     title="Remove from favorites"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -103,7 +85,7 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ user, listings, onNavigat
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">No favorites yet</h3>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-            Items you mark with a heart <span className="text-red-500">♥</span> will appear here.
+            Items you mark with a heart will appear here.
           </p>
           <button 
             onClick={() => onNavigate('listings', { query: '' })} 
