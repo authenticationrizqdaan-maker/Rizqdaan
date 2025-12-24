@@ -15,6 +15,23 @@ export interface Review {
   date: string;
 }
 
+export interface HelpCategory {
+  id: string;
+  title: string;
+  icon: string;
+  order: number;
+  isActive: boolean;
+}
+
+export interface HelpTopic {
+  id: string;
+  categoryId: string;
+  title: string;
+  content: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface Listing {
   id:string;
   title: string;
