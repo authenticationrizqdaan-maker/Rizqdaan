@@ -6,7 +6,7 @@ interface AccountPageProps {
   user: User;
   listings: Listing[];
   onLogout: () => void;
-  onNavigate: (view: 'my-ads' | 'add-listing' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications') => void;
+  onNavigate: (view: 'my-ads' | 'add-listing' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center') => void;
 }
 
 const AccountPage: React.FC<AccountPageProps> = ({ user, listings, onLogout, onNavigate }) => {
@@ -93,7 +93,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ user, listings, onLogout, onN
       { 
         label: 'Help Center', 
         icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-        action: () => alert('Feature coming soon!') 
+        action: () => onNavigate('help-center') 
       },
     ]
   };
@@ -148,7 +148,6 @@ const AccountPage: React.FC<AccountPageProps> = ({ user, listings, onLogout, onN
             <div className="relative z-10 flex justify-between items-center">
                 <div>
                     <p className="text-blue-100 text-sm font-medium mb-1">Available Balance</p>
-                    {/* Safe check before toLocaleString */}
                     <h2 className="text-3xl font-bold">Rs. {(user.wallet?.balance || 0).toLocaleString()}</h2>
                 </div>
                 <button 
@@ -158,7 +157,6 @@ const AccountPage: React.FC<AccountPageProps> = ({ user, listings, onLogout, onN
                     + Add Funds
                 </button>
             </div>
-            {/* Decorative circles */}
             <div className="absolute -right-6 -top-6 w-24 h-24 bg-white opacity-10 rounded-full"></div>
             <div className="absolute -left-6 -bottom-6 w-20 h-20 bg-white opacity-10 rounded-full"></div>
       </div>
