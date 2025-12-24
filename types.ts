@@ -38,17 +38,17 @@ export interface Listing {
   description: string;
   type: ListingType;
   category: string;
-  price: number; // This is now the discounted/current price
+  price: number; 
   originalPrice?: number;
   itemsSold: number;
   hasFreeDelivery: boolean;
   imageUrl: string;
-  images?: string[]; // Array of image URLs for gallery
+  images?: string[]; 
   vendorId: string;
   vendorName: string;
   location: string;
-  latitude?: number; // GPS Latitude
-  longitude?: number; // GPS Longitude
+  latitude?: number; 
+  longitude?: number; 
   rating: number;
   reviews: Review[];
   contact: {
@@ -56,13 +56,11 @@ export interface Listing {
     whatsapp: string;
   };
   createdAt?: string;
-  // New Analytics Fields
   views?: number;
-  calls?: number; // Added calls tracking
-  messages?: number; // Added messages tracking
+  calls?: number; 
+  messages?: number; 
   likes?: number;
   isPromoted?: boolean;
-  // Expanded Status for Admin Moderation
   status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired';
 }
 
@@ -70,10 +68,10 @@ export interface HomeBanner {
     id: string;
     title: string;
     subtitle: string;
-    color: string; // Gradient class e.g. "from-blue-600 to-blue-800"
-    icon: string; // Emoji
-    imageUrl?: string; // Optional custom background image
-    link?: string; // Listing ID or Search Query
+    color: string; 
+    icon: string; 
+    imageUrl?: string; 
+    link?: string; 
     isActive: boolean;
     order: number;
 }
@@ -86,7 +84,7 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon?: ReactElement | string; // Changed to allow string for stored icons
+  icon?: ReactElement | string; 
   subcategories: SubCategory[];
 }
 
@@ -104,7 +102,7 @@ export interface Transaction {
   date: string;
   status: 'completed' | 'pending' | 'failed';
   description?: string;
-  userId?: string; // Optional linkage for global ledger
+  userId?: string; 
   userName?: string;
 }
 
@@ -126,7 +124,7 @@ export interface DepositRequest {
     userId: string;
     userName: string;
     amount: number;
-    method: string; // 'JazzCash' | 'EasyPaisa' | 'Bank'
+    method: string; 
     transactionId: string;
     senderPhone: string;
     screenshotUrl?: string;
@@ -140,13 +138,13 @@ export interface PaymentInfo {
     accountTitle: string;
     accountNumber: string;
     instructions?: string;
-    customNote?: string; // New field for admin custom messages
+    customNote?: string; 
 }
 
 export interface ReferralSettings {
-    inviterBonus: number; // Amount given to person who invited
-    inviteeBonus: number; // Amount given to new user
-    badgeThreshold: number; // Number of invites needed for Star Badge
+    inviterBonus: number; 
+    inviteeBonus: number; 
+    badgeThreshold: number; 
     isActive: boolean;
 }
 
@@ -165,8 +163,6 @@ export interface AdCampaign {
     totalCost: number;
     targetLocation: string; 
     priority?: 'high' | 'normal';
-    
-    // Live Analytics
     impressions: number;
     clicks: number;
     ctr: number; 
@@ -203,16 +199,13 @@ export interface User {
   followers?: string[]; 
   favorites?: string[]; 
   savedSearches?: string[]; 
-  
   referralCode?: string; 
   referredBy?: string | null; 
   referralStats?: {
       totalInvited: number;
       totalEarned: number;
   };
-
   adminNotes?: string; 
-
   wallet?: {
     balance: number;
     totalSpend: number;
@@ -220,7 +213,6 @@ export interface User {
     pendingWithdrawal: number;
   };
   walletHistory?: Transaction[]; 
-  
   notifications?: {
       push: boolean;
       email: boolean;
