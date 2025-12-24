@@ -15,23 +15,6 @@ export interface Review {
   date: string;
 }
 
-export interface HelpCategory {
-  id: string;
-  title: string;
-  icon: string;
-  order: number;
-  isActive: boolean;
-}
-
-export interface HelpTopic {
-  id: string;
-  categoryId: string;
-  title: string;
-  content: string;
-  order: number;
-  isActive: boolean;
-}
-
 export interface Listing {
   id:string;
   title: string;
@@ -88,11 +71,80 @@ export interface Category {
   subcategories: SubCategory[];
 }
 
+/**
+ * Fix: Added missing Vendor interface to resolve "Module '"./types"' has no exported member 'Vendor'" error in constants.tsx
+ */
 export interface Vendor {
   id: string;
   name: string;
   profilePictureUrl: string;
   memberSince: string;
+}
+
+/**
+ * Fix: Added HelpCategory interface to resolve missing member error in HelpCenterPage.tsx and ManageHelpCenter.tsx
+ */
+export interface HelpCategory {
+  id: string;
+  title: string;
+  icon: string;
+  order: number;
+  isActive: boolean;
+}
+
+/**
+ * Fix: Added HelpTopic interface to resolve missing member error in HelpCenterPage.tsx and ManageHelpCenter.tsx
+ */
+export interface HelpTopic {
+  id: string;
+  categoryId: string;
+  title: string;
+  content: string;
+  order: number;
+  isActive: boolean;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  phone: string;
+  shopName: string;
+  shopAddress: string;
+  googleId?: string;
+  isVerified: boolean;
+  isBanned?: boolean; 
+  isAdmin?: boolean;
+  profilePictureUrl?: string;
+  coverPictureUrl?: string;
+  bio?: string;
+  /**
+   * Fix: Added memberSince to User interface to resolve "Property 'memberSince' does not exist on type 'User'" error in ListingDetailsPage.tsx
+   */
+  memberSince?: string;
+  followers?: string[]; 
+  favorites?: string[]; 
+  savedSearches?: string[]; 
+  referralCode?: string; 
+  referredBy?: string | null; 
+  referralStats?: {
+      totalInvited: number;
+      totalEarned: number;
+  };
+  adminNotes?: string; 
+  wallet?: {
+    balance: number;
+    totalSpend: number;
+    pendingDeposit: number;
+    pendingWithdrawal: number;
+  };
+  walletHistory?: Transaction[]; 
+  notifications?: {
+      push: boolean;
+      email: boolean;
+      sms: boolean;
+  };
 }
 
 export interface Transaction {
@@ -179,45 +231,6 @@ export interface AppNotification {
     isRead: boolean;
     createdAt: string; 
     link?: string; 
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  password?: string;
-  phone: string;
-  shopName: string;
-  shopAddress: string;
-  googleId?: string;
-  isVerified: boolean;
-  isBanned?: boolean; 
-  isAdmin?: boolean;
-  profilePictureUrl?: string;
-  coverPictureUrl?: string;
-  bio?: string;
-  followers?: string[]; 
-  favorites?: string[]; 
-  savedSearches?: string[]; 
-  referralCode?: string; 
-  referredBy?: string | null; 
-  referralStats?: {
-      totalInvited: number;
-      totalEarned: number;
-  };
-  adminNotes?: string; 
-  wallet?: {
-    balance: number;
-    totalSpend: number;
-    pendingDeposit: number;
-    pendingWithdrawal: number;
-  };
-  walletHistory?: Transaction[]; 
-  notifications?: {
-      push: boolean;
-      email: boolean;
-      sms: boolean;
-  };
 }
 
 export interface Message {
