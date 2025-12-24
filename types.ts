@@ -78,25 +78,6 @@ export interface Vendor {
   memberSince: string;
 }
 
-// Fix: Added HelpCategory interface to resolve missing export error in HelpCenter and Admin panels
-export interface HelpCategory {
-  id: string;
-  title: string;
-  icon: string;
-  order: number;
-  isActive: boolean;
-}
-
-// Fix: Added HelpTopic interface to resolve missing export error in HelpCenter and Admin panels
-export interface HelpTopic {
-  id: string;
-  categoryId: string;
-  title: string;
-  content: string;
-  order: number;
-  isActive: boolean;
-}
-
 export interface User {
   id: string;
   name: string;
@@ -240,4 +221,22 @@ export interface ChatConversation {
   participantNames: Record<string, string>; 
   participantPics?: Record<string, string>; 
   unreadCounts: Record<string, number>;
+}
+
+// Fix: Added HelpCategory and HelpTopic interfaces to support the Help Center functionality.
+export interface HelpCategory {
+    id: string;
+    title: string;
+    icon: string;
+    order: number;
+    isActive: boolean;
+}
+
+export interface HelpTopic {
+    id: string;
+    categoryId: string;
+    title: string;
+    content: string;
+    order: number;
+    isActive: boolean;
 }
