@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Unsubscribe } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, onSnapshot, deleteDoc, updateDoc, query, orderBy, limit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, getDoc, collection, onSnapshot, Unsubscribe, deleteDoc, updateDoc, arrayUnion, query, where, getDocs, increment, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { auth, db, isFirebaseConfigured } from './firebaseConfig';
 
 import Header from './components/common/Header';
 import BottomNavBar from './components/common/BottomNavBar';
@@ -24,7 +23,8 @@ import ChatPage from './components/pages/ChatPage';
 import AddFundsPage from './components/pages/AddFundsPage';
 import WalletHistoryPage from './components/pages/WalletHistoryPage';
 import NotificationsPage from './components/pages/NotificationsPage'; 
-import { Listing, User, Category, Transaction } from './types';
+import { Listing, User, Category, Transaction, ReferralSettings } from './types';
+// FIX: Removed unused and non-existent MOCK_LISTINGS import from constants.tsx
 import { CATEGORIES as DEFAULT_CATEGORIES } from './constants';
 
 type View = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications';
@@ -36,7 +36,7 @@ type NavigatePayload = {
   targetVendorId?: string;
 };
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   const [theme, setTheme] = useState('light');
   const [view, setView] = useState<View>('home');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -44,6 +44,7 @@ export const App: React.FC = () => {
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   
+  // --- PAGINATED LISTINGS STATE ---
   const [listingsDB, setListingsDB] = useState<Listing[]>([]);
   const [lastListingDoc, setLastListingDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreListings, setHasMoreListings] = useState(true);
@@ -52,6 +53,7 @@ export const App: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [chatTargetUser, setChatTargetUser] = useState<{id: string, name: string} | null>(null);
   const [usersDB, setUsersDB] = useState<User[]>([]);
+  const [walletUpdateVersion, setWalletUpdateVersion] = useState(0);
 
   const [initialVendorTab, setInitialVendorTab] = useState<'dashboard' | 'my-listings' | 'add-listing' | 'promotions'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,6 +100,7 @@ export const App: React.FC = () => {
       });
   };
 
+  // --- AUTH LISTENER ---
   useEffect(() => {
     if (!auth) return;
     let userUnsubscribe: Unsubscribe | null = null;
@@ -128,6 +131,8 @@ export const App: React.FC = () => {
                         await setDoc(doc(db, "users", firebaseUser.uid), newUser);
                         setUser(newUser);
                     }
+                }, (err) => {
+                    if (!err.message.includes('permission')) console.error("Profile listen error", err.message);
                 });
             } catch (e) {}
         }
@@ -142,89 +147,211 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // --- ADMIN USERS LISTENER ---
   useEffect(() => {
       if (!user?.isAdmin || !db) {
           setUsersDB([]);
           return;
       }
+
       const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-          setUsersDB(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
+          const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+          setUsersDB(fetchedUsers);
+      }, (err) => {
+          if (!err.message.includes('permission')) console.error("Admin Users fetch error", err.message);
       });
+
       return () => unsubscribe();
   }, [user?.isAdmin, user?.id]);
 
+  // --- LOCAL SYNC LISTENERS ---
+  useEffect(() => {
+      const handleDataUpdate = () => {
+          if (user) {
+              setUser(prevUser => prevUser ? mergeLocalUserData(prevUser) : null);
+          }
+          setWalletUpdateVersion(v => v + 1);
+      };
+      const handleListingsUpdate = () => {
+          setListingsDB(prev => mergeLocalListings(prev));
+      };
+      window.addEventListener('wallet_updated', handleDataUpdate);
+      window.addEventListener('favorites_updated', handleDataUpdate);
+      window.addEventListener('listings_updated', handleListingsUpdate);
+      window.addEventListener('storage', handleDataUpdate);
+      return () => {
+          window.removeEventListener('wallet_updated', handleDataUpdate);
+          window.removeEventListener('favorites_updated', handleDataUpdate);
+          window.removeEventListener('listings_updated', handleListingsUpdate);
+          window.removeEventListener('storage', handleDataUpdate);
+      };
+  }, [user?.id]);
+
+  // --- PAGINATED LISTINGS REAL-TIME INITIAL FETCH ---
   useEffect(() => {
       if (!db) return;
-      const q = query(collection(db, "listings"), orderBy("createdAt", "desc"), limit(20));
+      
+      const q = query(
+          collection(db, "listings"),
+          orderBy("createdAt", "desc"),
+          limit(20)
+      );
+
       const unsubscribe = onSnapshot(q, (snapshot) => {
           const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
           setListingsDB(mergeLocalListings(items));
           setLastListingDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-          setHasMoreListings(snapshot.docs.length >= 20);
+          if (snapshot.docs.length < 20) setHasMoreListings(false);
+          else setHasMoreListings(true);
+      }, (err) => {
+          console.warn("Initial listings listener error:", err.message);
       });
+
       return () => unsubscribe();
   }, []);
 
   const fetchMoreListings = async () => {
       if (!db || loadingData || !hasMoreListings || !lastListingDoc) return;
+
       setLoadingData(true);
       try {
-          const q = query(collection(db, "listings"), orderBy("createdAt", "desc"), startAfter(lastListingDoc), limit(20));
+          const q = query(
+              collection(db, "listings"),
+              orderBy("createdAt", "desc"),
+              startAfter(lastListingDoc),
+              limit(20)
+          );
+
           const snapshot = await getDocs(q);
           const newItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
-          setHasMoreListings(snapshot.docs.length >= 20);
+          
+          if (snapshot.docs.length < 20) {
+              setHasMoreListings(false);
+          }
+
           setLastListingDoc(snapshot.docs[snapshot.docs.length - 1] || null);
           setListingsDB(prev => mergeLocalListings([...prev, ...newItems]));
+      } catch (error: any) {
+          console.error("Fetch More Error:", error.message);
       } finally {
           setLoadingData(false);
       }
   };
+
+  // --- CATEGORIES LISTENER ---
+  useEffect(() => {
+      if (!db) return;
+      const unsubscribe = onSnapshot(collection(db, "categories"), (snapshot) => {
+          const dbCategories: Category[] = [];
+          snapshot.forEach(doc => {
+              dbCategories.push({ id: doc.id, ...doc.data() } as Category);
+          });
+          if (dbCategories.length > 0) setCategories(dbCategories);
+      }, (err) => {
+          if (!err.message.includes('permission')) console.error("Categories error", err.message);
+      });
+      return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [theme]);
 
+  const toggleTheme = () => setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+
+  const handleSaveSearch = async (queryStr: string) => {
+    if (!queryStr.trim() || !user || !db) return;
+    const lowerCaseQuery = queryStr.toLowerCase();
+    if (!user.savedSearches?.includes(lowerCaseQuery)) {
+        try {
+            await setDoc(doc(db, "users", user.id), { savedSearches: arrayUnion(lowerCaseQuery) }, { merge: true });
+        } catch(e) {}
+    }
+  };
+
   const handleNavigate = useCallback((newView: View, payload?: NavigatePayload) => {
     if (newView !== 'details' && newView !== 'subcategories') {
       setSelectedListing(null); setSelectedCategory(null);
     }
-    if (newView !== 'listings' && newView !== 'details') setSearchQuery('');
+     if (newView !== 'listings' && newView !== 'details') setSearchQuery('');
     if (payload?.listing && newView === 'details') setSelectedListing(payload.listing);
     if (payload?.category && newView === 'subcategories') setSelectedCategory(payload.category);
     if (payload?.query !== undefined && newView === 'listings') setSearchQuery(payload.query);
     if (payload?.targetUser && newView === 'chats') setChatTargetUser(payload.targetUser);
+    else if (newView === 'chats') setChatTargetUser(null); 
     if (payload?.targetVendorId && newView === 'vendor-profile') setSelectedVendorId(payload.targetVendorId);
 
     if (newView === 'add-listing') { setInitialVendorTab('add-listing'); setView('vendor-dashboard'); }
     else if (newView === 'my-ads') { setInitialVendorTab('my-listings'); setView('vendor-dashboard'); }
     else if (newView === 'vendor-analytics') { setInitialVendorTab('dashboard'); setView('vendor-dashboard'); }
     else if (newView === 'promote-business') { setInitialVendorTab('promotions'); setView('vendor-dashboard'); }
-    else setView(newView);
+    else if (['chats', 'account', 'favorites', 'saved-searches', 'edit-profile', 'settings', 'admin', 'add-balance', 'referrals', 'wallet-history', 'notifications'].includes(newView)) {
+        if (user) {
+            if (newView === 'admin' && !user.isAdmin) setView('home'); 
+            else setView(newView);
+        } else setView('auth');
+    } else setView(newView);
     window.scrollTo(0, 0);
-  }, []);
-
+  }, [user]);
+  
   const handleLogin = async (email: string, password: string) => {
     try {
+        if (!navigator.onLine) return { success: false, message: 'No internet connection.' };
         if (email === 'admin@rizqdaan.com' && password === 'admin') {
             const adminUser: User = { id: 'admin-demo', name: 'Admin', email: 'admin@rizqdaan.com', phone: '0000', shopName: 'Admin HQ', shopAddress: 'Cloud', isVerified: true, isAdmin: true };
             setUser(adminUser); setView('admin'); return { success: true, message: 'Logged in as Demo Admin' };
         }
+        if (!auth) throw new Error("Firebase keys are missing.");
         await signInWithEmailAndPassword(auth, email, password);
-        return { success: true, message: 'Login successful!' };
+        setView('account'); return { success: true, message: 'Login successful!' };
     } catch (error: any) { return { success: false, message: error.message }; }
   };
 
-  const handleSignup = async (userData: any) => {
+  const handleSignup = async (userData: Omit<User, 'id' | 'isVerified'> & { referralCodeInput?: string }) => {
     try {
+        if (!navigator.onLine) return { success: false, message: 'No internet connection.' };
+        if (!auth || !db) throw new Error("Firebase keys are missing.");
         const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password || 'password123');
-        const newUserId = userCredential.user.uid;
+        const firebaseUser = userCredential.user;
+        const newUserId = firebaseUser.uid;
+        const myReferralCode = generateReferralCode(userData.name);
+        let inviterReward = 200, inviteeReward = 300;
+        try {
+            const settingsSnap = await getDoc(doc(db, 'settings', 'referrals'));
+            if (settingsSnap.exists()) {
+                const settings = settingsSnap.data() as ReferralSettings;
+                if (settings.isActive) { inviterReward = settings.inviterBonus; inviteeReward = settings.inviteeBonus; }
+                else { inviterReward = 0; inviteeReward = 0; }
+            }
+        } catch (e) {}
+        let referrerId = null, initialBalance = 0;
+        const transactions: Transaction[] = [];
+        if (userData.referralCodeInput && inviteeReward > 0) {
+            const q = query(collection(db, "users"), where("referralCode", "==", userData.referralCodeInput.trim().toUpperCase()));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const referrerDoc = querySnapshot.docs[0];
+                referrerId = referrerDoc.id;
+                if (inviterReward > 0) {
+                    await updateDoc(doc(db, "users", referrerId), {
+                        "wallet.balance": increment(inviterReward),
+                        "referralStats.totalInvited": increment(1),
+                        "referralStats.totalEarned": increment(inviterReward),
+                        walletHistory: arrayUnion({ id: `tx_ref_${Date.now()}_R`, type: 'referral_bonus', amount: inviterReward, date: new Date().toISOString().split('T')[0], status: 'completed', description: `Referral Bonus: Invited ${userData.name}` })
+                    });
+                }
+                initialBalance = inviteeReward;
+                transactions.push({ id: `tx_ref_${Date.now()}_U`, type: 'referral_bonus', amount: inviteeReward, date: new Date().toISOString().split('T')[0], status: 'completed', description: `Welcome Bonus: Used code ${userData.referralCodeInput}` });
+            }
+        }
         const newUserProfile: User = {
             id: newUserId, name: userData.name, email: userData.email, phone: userData.phone,
             shopName: userData.shopName, shopAddress: userData.shopAddress, isVerified: false,
-            referralCode: generateReferralCode(userData.name), referredBy: null,
-            wallet: { balance: 0, totalSpend: 0, pendingDeposit: 0, pendingWithdrawal: 0 },
-            walletHistory: [], favorites: []
+            referralCode: myReferralCode, referredBy: referrerId || null,
+            referralStats: { totalInvited: 0, totalEarned: 0 },
+            wallet: { balance: initialBalance, totalSpend: 0, pendingDeposit: 0, pendingWithdrawal: 0 },
+            walletHistory: transactions, favorites: []
         };
         await setDoc(doc(db, "users", newUserId), newUserProfile);
         return { success: true, message: 'Signup successful!', user: newUserProfile };
@@ -232,47 +359,62 @@ export const App: React.FC = () => {
   };
 
   const handleVerifyAndLogin = async (userId: string) => {
+      if (!db) return;
       try {
-          await updateDoc(doc(db, "users", userId), { isVerified: true });
+          await setDoc(doc(db, "users", userId), { isVerified: true }, { merge: true });
           setView('account');
       } catch (e) {}
   };
 
+  const handleAdminUpdateUserVerification = (userId: string, isVerified: boolean) => {
+    if(db) { setDoc(doc(db, "users", userId), { isVerified }, { merge: true }).catch(() => {}); }
+  };
+  
   const handleAdminDeleteListing = async (listingId: string) => {
-      await deleteDoc(doc(db, "listings", listingId));
+      setListingsDB(prev => prev.filter(l => l.id !== listingId));
+      if(db) { try { await deleteDoc(doc(db, "listings", listingId)); } catch(e) {} }
   };
 
-  const renderView = () => {
-    switch (view) {
-      case 'home': return <HomePage listings={listingsDB} categories={categories} onNavigate={handleNavigate} onSaveSearch={() => {}} />;
-      case 'listings': return <ListingsPage listings={listingsDB} onNavigate={handleNavigate} initialSearchTerm={searchQuery} loadMore={fetchMoreListings} hasMore={hasMoreListings} isLoading={loadingData} />;
-      case 'details': return selectedListing ? <ListingDetailsPage listing={selectedListing} listings={listingsDB} user={user} onNavigate={handleNavigate} /> : null;
-      case 'vendor-dashboard': return <VendorDashboard initialTab={initialVendorTab} listings={listingsDB} user={user} onNavigate={handleNavigate} />;
-      case 'vendor-profile': return selectedVendorId ? <VendorProfilePage vendorId={selectedVendorId} currentUser={user} listings={listingsDB} onNavigate={handleNavigate} /> : null;
-      case 'auth': return <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />;
-      case 'account': return user ? <AccountPage user={user} listings={listingsDB} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} onNavigate={handleNavigate} /> : <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />;
-      case 'subcategories': return selectedCategory ? <SubCategoryPage category={selectedCategory} onNavigate={() => setView('home')} onListingNavigate={(v, q) => handleNavigate(v, { query: q })} /> : null;
-      case 'chats': return user ? <ChatPage currentUser={user} targetUser={chatTargetUser} onNavigate={() => setView('home')} /> : null;
-      case 'favorites': return user ? <FavoritesPage user={user} listings={listingsDB} onNavigate={handleNavigate} /> : null;
-      case 'saved-searches': return user ? <SavedSearchesPage searches={user.savedSearches || []} onNavigate={handleNavigate} /> : null;
-      case 'edit-profile': return user ? <EditProfilePage user={user} onNavigate={handleNavigate} /> : null;
-      case 'settings': return user ? <SettingsPage user={user} onNavigate={handleNavigate} currentTheme={theme} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} /> : null;
-      case 'admin': return user?.isAdmin ? <AdminPanel users={usersDB} listings={listingsDB} onUpdateUserVerification={() => {}} onDeleteListing={handleAdminDeleteListing} onImpersonate={(u) => { setUser(u); setView('vendor-dashboard'); }} onNavigate={handleNavigate} /> : null;
-      case 'add-balance': return user ? <AddFundsPage user={user} onNavigate={() => setView('account')} /> : null;
-      case 'referrals': return user ? <ReferralPage user={user} onNavigate={() => setView('account')} /> : null;
-      case 'wallet-history': return user ? <WalletHistoryPage user={user} onNavigate={() => setView('account')} /> : null;
-      case 'notifications': return user ? <NotificationsPage user={user} onNavigate={handleNavigate} /> : null;
-      default: return <HomePage listings={listingsDB} categories={categories} onNavigate={handleNavigate} onSaveSearch={() => {}} />;
-    }
+  const handleImpersonate = (targetUser: User) => {
+      const demoWallets = JSON.parse(localStorage.getItem('demo_user_wallets') || '{}');
+      let finalUser = targetUser;
+      if (demoWallets[targetUser.id]) {
+          finalUser = {
+              ...targetUser,
+              wallet: { ...targetUser.wallet, balance: demoWallets[targetUser.id].balance, totalSpend: demoWallets[targetUser.id].totalSpend ?? (targetUser.wallet?.totalSpend || 0), pendingDeposit: demoWallets[targetUser.id].pendingDeposit ?? (targetUser.wallet?.pendingDeposit || 0), pendingWithdrawal: demoWallets[targetUser.id].pendingWithdrawal ?? (targetUser.wallet?.pendingWithdrawal || 0) }
+          };
+      }
+      setUser(finalUser); setInitialVendorTab('dashboard'); setView('vendor-dashboard');
   };
+
+  const mainPaddingClass = view === 'home' ? 'container mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-24' : 'container mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24';
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'dark bg-dark-bg' : 'bg-primary-light'}`}>
-      <Header onNavigate={handleNavigate} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} currentTheme={theme} user={user} />
-      <main className={view === 'home' ? "container mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-24" : "container mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24"}>
-        {renderView()}
+      <Header onNavigate={handleNavigate} toggleTheme={toggleTheme} currentTheme={theme} user={user} />
+      <main className={mainPaddingClass}>
+        {view === 'home' && <HomePage listings={listingsDB} categories={categories} onNavigate={handleNavigate} onSaveSearch={handleSaveSearch} />}
+        {view === 'listings' && <ListingsPage listings={listingsDB} onNavigate={handleNavigate} initialSearchTerm={searchQuery} loadMore={fetchMoreListings} hasMore={hasMoreListings} isLoading={loadingData} />}
+        {view === 'subcategories' && selectedCategory && <SubCategoryPage category={selectedCategory} onNavigate={handleNavigate} onListingNavigate={(v, q) => handleNavigate(v, { query: q })} />}
+        {view === 'details' && selectedListing && <ListingDetailsPage listing={selectedListing} listings={listingsDB} user={user} onNavigate={handleNavigate} />}
+        {view === 'vendor-dashboard' && <VendorDashboard initialTab={initialVendorTab} listings={listingsDB} user={user} onNavigate={(v, payload) => handleNavigate(v as View, payload)} />}
+        {view === 'vendor-profile' && selectedVendorId && <VendorProfilePage vendorId={selectedVendorId} currentUser={user} listings={listingsDB} onNavigate={(v, p) => handleNavigate(v as View, p)} />}
+        {view === 'auth' && <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />}
+        {view === 'account' && user && <AccountPage user={user} listings={listingsDB} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} onNavigate={handleNavigate} />}
+        {view === 'favorites' && user && <FavoritesPage user={user} listings={listingsDB} onNavigate={handleNavigate} />}
+        {view === 'saved-searches' && user && <SavedSearchesPage searches={user.savedSearches || []} onNavigate={handleNavigate} />}
+        {view === 'edit-profile' && user && <EditProfilePage user={user} onNavigate={(v, p) => handleNavigate(v as View, p)} />}
+        {view === 'settings' && user && <SettingsPage user={user} onNavigate={handleNavigate} currentTheme={theme} toggleTheme={toggleTheme} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} />}
+        {view === 'referrals' && user && <ReferralPage user={user} onNavigate={handleNavigate} />}
+        {view === 'add-balance' && user && <AddFundsPage user={user} onNavigate={handleNavigate} />}
+        {view === 'wallet-history' && user && <WalletHistoryPage user={user} onNavigate={handleNavigate} />}
+        {view === 'notifications' && user && <NotificationsPage user={user} onNavigate={(v) => handleNavigate(v as View)} />}
+        {view === 'chats' && user && <ChatPage currentUser={user} targetUser={chatTargetUser} onNavigate={handleNavigate} />}
+        {view === 'admin' && user?.isAdmin && <AdminPanel users={usersDB} listings={listingsDB} onUpdateUserVerification={handleAdminUpdateUserVerification} onDeleteListing={handleAdminDeleteListing} onImpersonate={handleImpersonate} onNavigate={(v, p) => handleNavigate(v as View, p)} />}
       </main>
       <BottomNavBar onNavigate={handleNavigate} activeView={view} />
     </div>
   );
 };
+
+export default App;
