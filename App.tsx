@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, onSnapshot, Unsubscribe, deleteDoc, updateDoc, arrayUnion, query, where, getDocs, increment, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Unsubscribe } from 'firebase/auth';
+import { doc, setDoc, updateDoc, collection, onSnapshot, query, orderBy, limit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 
 import Header from './components/common/Header';
@@ -25,21 +24,12 @@ import AddFundsPage from './components/pages/AddFundsPage';
 import WalletHistoryPage from './components/pages/WalletHistoryPage';
 import NotificationsPage from './components/pages/NotificationsPage'; 
 import HelpCenterPage from './components/pages/HelpCenterPage';
-import { Listing, User, Category, Transaction, ReferralSettings } from './types';
+import { Listing, User, Category, Transaction, AppView, NavigatePayload } from './types';
 import { CATEGORIES as DEFAULT_CATEGORIES } from './constants';
-
-type View = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center';
-type NavigatePayload = {
-  listing?: Listing;
-  category?: Category;
-  query?: string;
-  targetUser?: { id: string; name: string };
-  targetVendorId?: string;
-};
 
 const App: React.FC = () => {
   const [theme, setTheme] = useState('light');
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<AppView>('home');
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -89,14 +79,6 @@ const App: React.FC = () => {
       }
       if (!updatedUser.favorites) updatedUser.favorites = [];
       return updatedUser;
-  };
-
-  const mergeLocalListings = (baseListings: Listing[]) => {
-      const overrides = JSON.parse(localStorage.getItem('demo_listings_overrides') || '{}');
-      return baseListings.map(l => {
-          if (overrides[l.id]) return { ...l, ...overrides[l.id] };
-          return l;
-      });
   };
 
   useEffect(() => {
@@ -159,7 +141,7 @@ const App: React.FC = () => {
       const q = query(collection(db, "listings"), orderBy("createdAt", "desc"), limit(20));
       const unsubscribe = onSnapshot(q, (snapshot) => {
           const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
-          setListingsDB(mergeLocalListings(items));
+          setListingsDB(items);
           setLastListingDoc(snapshot.docs[snapshot.docs.length - 1] || null);
           setHasMoreListings(snapshot.docs.length >= 20);
       });
@@ -175,7 +157,7 @@ const App: React.FC = () => {
           const newItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
           setHasMoreListings(snapshot.docs.length >= 20);
           setLastListingDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-          setListingsDB(prev => mergeLocalListings([...prev, ...newItems]));
+          setListingsDB(prev => [...prev, ...newItems]);
       } finally {
           setLoadingData(false);
       }
@@ -186,7 +168,7 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [theme]);
 
-  const handleNavigate = useCallback((newView: View, payload?: NavigatePayload) => {
+  const handleNavigate = useCallback((newView: AppView, payload?: NavigatePayload) => {
     if (newView !== 'details' && newView !== 'subcategories') {
       setSelectedListing(null); setSelectedCategory(null);
     }
@@ -239,26 +221,22 @@ const App: React.FC = () => {
       } catch (e) {}
   };
 
-  const handleAdminDeleteListing = async (listingId: string) => {
-      await deleteDoc(doc(db, "listings", listingId));
-  };
-
   const renderView = () => {
     switch (view) {
       case 'home': return <HomePage listings={listingsDB} categories={categories} onNavigate={handleNavigate} onSaveSearch={() => {}} />;
-      case 'listings': return <ListingsPage listings={listingsDB} onNavigate={handleNavigate} initialSearchTerm={searchQuery} loadMore={fetchMoreListings} hasMore={hasMoreListings} isLoading={loadingData} />;
-      case 'details': return selectedListing ? <ListingDetailsPage listing={selectedListing} listings={listingsDB} user={user} onNavigate={handleNavigate} /> : null;
+      case 'listings': return <ListingsPage listings={listingsDB} onNavigate={(v, p) => handleNavigate('details', p)} initialSearchTerm={searchQuery} loadMore={fetchMoreListings} hasMore={hasMoreListings} isLoading={loadingData} />;
+      case 'details': return selectedListing ? <ListingDetailsPage listing={selectedListing} listings={listingsDB} user={user} onNavigate={handleNavigate as any} /> : null;
       case 'vendor-dashboard': return <VendorDashboard initialTab={initialVendorTab} listings={listingsDB} user={user} onNavigate={handleNavigate} />;
       case 'vendor-profile': return selectedVendorId ? <VendorProfilePage vendorId={selectedVendorId} currentUser={user} listings={listingsDB} onNavigate={handleNavigate} /> : null;
       case 'auth': return <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />;
-      case 'account': return user ? <AccountPage user={user} listings={listingsDB} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} onNavigate={handleNavigate} /> : <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />;
+      case 'account': return user ? <AccountPage user={user} listings={listingsDB} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} onNavigate={handleNavigate as any} /> : <AuthPage onLogin={handleLogin} onSignup={handleSignup} onVerifyAndLogin={handleVerifyAndLogin} />;
       case 'subcategories': return selectedCategory ? <SubCategoryPage category={selectedCategory} onNavigate={() => setView('home')} onListingNavigate={(v, q) => handleNavigate(v, { query: q })} /> : null;
       case 'chats': return user ? <ChatPage currentUser={user} targetUser={chatTargetUser} onNavigate={() => setView('home')} /> : null;
-      case 'favorites': return user ? <FavoritesPage user={user} listings={listingsDB} onNavigate={handleNavigate} /> : null;
-      case 'saved-searches': return user ? <SavedSearchesPage searches={user.savedSearches || []} onNavigate={handleNavigate} /> : null;
+      case 'favorites': return user ? <FavoritesPage user={user} listings={listingsDB} onNavigate={handleNavigate as any} /> : null;
+      case 'saved-searches': return user ? <SavedSearchesPage searches={user.savedSearches || []} onNavigate={handleNavigate as any} /> : null;
       case 'edit-profile': return user ? <EditProfilePage user={user} onNavigate={handleNavigate} /> : null;
       case 'settings': return user ? <SettingsPage user={user} onNavigate={handleNavigate} currentTheme={theme} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} onLogout={() => { signOut(auth); setUser(null); setView('home'); }} /> : null;
-      case 'admin': return user?.isAdmin ? <AdminPanel users={usersDB} listings={listingsDB} onUpdateUserVerification={() => {}} onDeleteListing={handleAdminDeleteListing} onImpersonate={(u) => { setUser(u); setView('vendor-dashboard'); }} onNavigate={handleNavigate} /> : null;
+      case 'admin': return user?.isAdmin ? <AdminPanel users={usersDB} listings={listingsDB} onUpdateUserVerification={() => {}} onDeleteListing={() => {}} onImpersonate={(u) => { setUser(u); setView('vendor-dashboard'); }} onNavigate={handleNavigate} /> : null;
       case 'add-balance': return user ? <AddFundsPage user={user} onNavigate={() => setView('account')} /> : null;
       case 'referrals': return user ? <ReferralPage user={user} onNavigate={() => setView('account')} /> : null;
       case 'wallet-history': return user ? <WalletHistoryPage user={user} onNavigate={() => setView('account')} /> : null;
@@ -270,11 +248,11 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'dark bg-dark-bg' : 'bg-primary-light'}`}>
-      <Header onNavigate={handleNavigate} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} currentTheme={theme} user={user} />
+      <Header onNavigate={handleNavigate as any} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} currentTheme={theme} user={user} />
       <main className={view === 'home' ? "container mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-24" : "container mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24"}>
         {renderView()}
       </main>
-      <BottomNavBar onNavigate={handleNavigate} activeView={view} />
+      <BottomNavBar onNavigate={handleNavigate as any} activeView={view} />
     </div>
   );
 };
