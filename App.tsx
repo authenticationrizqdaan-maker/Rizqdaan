@@ -24,11 +24,10 @@ import ChatPage from './components/pages/ChatPage';
 import AddFundsPage from './components/pages/AddFundsPage';
 import WalletHistoryPage from './components/pages/WalletHistoryPage';
 import NotificationsPage from './components/pages/NotificationsPage'; 
-import HelpCenterPage from './components/pages/HelpCenterPage';
 import { Listing, User, Category, Transaction } from './types';
 import { CATEGORIES as DEFAULT_CATEGORIES } from './constants';
 
-type View = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center';
+type View = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications';
 type NavigatePayload = {
   listing?: Listing;
   category?: Category;
@@ -263,7 +262,6 @@ export const App: React.FC = () => {
       case 'referrals': return user ? <ReferralPage user={user} onNavigate={() => setView('account')} /> : null;
       case 'wallet-history': return user ? <WalletHistoryPage user={user} onNavigate={() => setView('account')} /> : null;
       case 'notifications': return user ? <NotificationsPage user={user} onNavigate={handleNavigate} /> : null;
-      case 'help-center': return <HelpCenterPage onNavigate={() => setView('account')} />;
       default: return <HomePage listings={listingsDB} categories={categories} onNavigate={handleNavigate} onSaveSearch={() => {}} />;
     }
   };
