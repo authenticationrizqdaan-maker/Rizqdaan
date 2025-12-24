@@ -82,7 +82,7 @@ export interface Vendor {
 export interface HelpCategory {
     id: string;
     title: string;
-    icon: string; // Emoji
+    icon: string; 
     order: number;
     isActive: boolean;
 }
@@ -94,6 +94,77 @@ export interface HelpTopic {
     content: string;
     order: number;
     isActive: boolean;
+}
+
+// SHARED NAVIGATION TYPES
+export type AppView = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center';
+
+export interface NavigatePayload {
+  listing?: Listing;
+  category?: Category;
+  query?: string;
+  targetUser?: { id: string; name: string };
+  targetVendorId?: string;
+}
+
+/**
+ * Added to fix import error in ManageFinance.tsx
+ */
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  amount: number;
+  method: 'EasyPaisa' | 'JazzCash' | 'Bank Transfer';
+  accountDetails: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestDate: string;
+  processedDate?: string;
+  adminNote?: string;
+}
+
+/**
+ * Added to fix import errors in ManageFinance.tsx, AddFundsPage.tsx, and WalletHistoryPage.tsx
+ */
+export interface DepositRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    amount: number;
+    method: string; // 'JazzCash' | 'EasyPaisa' | 'Bank'
+    transactionId: string;
+    senderPhone: string;
+    screenshotUrl?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    date: string;
+    adminNote?: string;
+}
+
+/**
+ * Added to fix import errors in ManageFinance.tsx and AddFundsPage.tsx
+ */
+export interface PaymentInfo {
+    bankName: string;
+    accountTitle: string;
+    accountNumber: string;
+    instructions?: string;
+    customNote?: string; 
+}
+
+/**
+ * Added for completeness and consistency across type definitions
+ */
+export interface PromotionRequest {
+    id: string;
+    vendorId: string;
+    vendorName: string;
+    shopName: string;
+    service: string;
+    priceString: string;
+    contact?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    createdAt: string;
+    approvedAt?: string;
 }
 
 export interface User {
@@ -114,16 +185,16 @@ export interface User {
   followers?: string[]; 
   favorites?: string[]; 
   savedSearches?: string[]; 
-  
   referralCode?: string; 
   referredBy?: string | null; 
   referralStats?: {
       totalInvited: number;
       totalEarned: number;
   };
-
+  /**
+   * Added to support private administrative notes
+   */
   adminNotes?: string; 
-
   wallet?: {
     balance: number;
     totalSpend: number;
@@ -131,7 +202,6 @@ export interface User {
     pendingWithdrawal: number;
   };
   walletHistory?: Transaction[]; 
-  
   notifications?: {
       push: boolean;
       email: boolean;
@@ -167,41 +237,6 @@ export interface Transaction {
   description?: string;
   userId?: string; 
   userName?: string;
-}
-
-export interface WithdrawalRequest {
-  id: string;
-  userId: string;
-  userName: string;
-  amount: number;
-  method: 'EasyPaisa' | 'JazzCash' | 'Bank Transfer';
-  accountDetails: string;
-  status: 'pending' | 'approved' | 'rejected';
-  requestDate: string;
-  processedDate?: string;
-  adminNote?: string;
-}
-
-export interface DepositRequest {
-    id: string;
-    userId: string;
-    userName: string;
-    amount: number;
-    method: string; 
-    transactionId: string;
-    senderPhone: string;
-    screenshotUrl?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    date: string;
-    adminNote?: string;
-}
-
-export interface PaymentInfo {
-    bankName: string;
-    accountTitle: string;
-    accountNumber: string;
-    instructions?: string;
-    customNote?: string; 
 }
 
 export interface ReferralSettings {
