@@ -71,9 +71,6 @@ export interface Category {
   subcategories: SubCategory[];
 }
 
-/**
- * Fix: Added missing Vendor interface to resolve "Module '"./types"' has no exported member 'Vendor'" error in constants.tsx
- */
 export interface Vendor {
   id: string;
   name: string;
@@ -81,9 +78,7 @@ export interface Vendor {
   memberSince: string;
 }
 
-/**
- * Fix: Added HelpCategory interface to resolve missing member error in HelpCenterPage.tsx and ManageHelpCenter.tsx
- */
+// Fix: Added HelpCategory interface to resolve missing export error in HelpCenter and Admin panels
 export interface HelpCategory {
   id: string;
   title: string;
@@ -92,9 +87,7 @@ export interface HelpCategory {
   isActive: boolean;
 }
 
-/**
- * Fix: Added HelpTopic interface to resolve missing member error in HelpCenterPage.tsx and ManageHelpCenter.tsx
- */
+// Fix: Added HelpTopic interface to resolve missing export error in HelpCenter and Admin panels
 export interface HelpTopic {
   id: string;
   categoryId: string;
@@ -119,9 +112,6 @@ export interface User {
   profilePictureUrl?: string;
   coverPictureUrl?: string;
   bio?: string;
-  /**
-   * Fix: Added memberSince to User interface to resolve "Property 'memberSince' does not exist on type 'User'" error in ListingDetailsPage.tsx
-   */
   memberSince?: string;
   followers?: string[]; 
   favorites?: string[]; 
