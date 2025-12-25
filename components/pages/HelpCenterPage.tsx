@@ -1,142 +1,261 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CATEGORIES as DEFAULT_CATEGORIES, PAKISTAN_LOCATIONS, renderIconByKey } from '../../constants';
+import { Listing, Category, HomeBanner } from '../../types';
+import ListingCard from '../common/ListingCard';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { HelpCategory, HelpTopic } from '../../types';
 
-interface HelpCenterPageProps {
-    onNavigate: () => void;
+interface HomePageProps {
+  listings: Listing[];
+  categories?: Category[]; 
+  onNavigate: (view: 'listings' | 'details' | 'subcategories', payload?: { listing?: Listing; category?: Category; query?: string }) => void;
+  onSaveSearch: (query: string) => void;
 }
 
-const HelpCenterPage: React.FC<HelpCenterPageProps> = ({ onNavigate }) => {
-    const [categories, setCategories] = useState<HelpCategory[]>([]);
-    const [topics, setTopics] = useState<HelpTopic[]>([]);
-    const [loading, setLoading] = useState(true);
-    
-    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-    const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!db) return;
-
-        const unsubCats = onSnapshot(query(collection(db, 'help_categories'), where('isActive', '==', true)), (snap) => {
-            const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as HelpCategory));
-            data.sort((a, b) => a.order - b.order);
-            setCategories(data);
-        });
-
-        const unsubTopics = onSnapshot(query(collection(db, 'help_topics'), where('isActive', '==', true)), (snap) => {
-            const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as HelpTopic));
-            data.sort((a, b) => a.order - b.order);
-            setTopics(data);
-            setLoading(false);
-        });
-
-        return () => {
-            unsubCats();
-            unsubTopics();
-        };
-    }, []);
-
-    const selectedCategory = categories.find(c => c.id === selectedCategoryId);
-    const filteredTopics = topics.filter(t => t.categoryId === selectedCategoryId);
-
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500 dark:text-gray-400 font-medium">Loading Help Center...</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="max-w-2xl mx-auto animate-fade-in pb-10">
-            <header className="flex items-center mb-8">
-                <button 
-                    onClick={() => selectedCategoryId ? setSelectedCategoryId(null) : onNavigate()} 
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                    <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white ml-4">
-                    {selectedCategoryId ? selectedCategory?.title : 'Help Center'}
-                </h1>
-            </header>
-
-            {!selectedCategoryId ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {categories.map((cat) => (
-                        <button
-                            key={cat.id}
-                            onClick={() => setSelectedCategoryId(cat.id)}
-                            className="flex items-center p-6 bg-white dark:bg-dark-surface border border-gray-100 dark:border-gray-700 rounded-2xl shadow-sm hover:shadow-md hover:border-primary/30 transition-all text-left group"
-                        >
-                            <span className="text-4xl mr-4 group-hover:scale-110 transition-transform">{cat.icon}</span>
-                            <div>
-                                <h3 className="font-bold text-gray-800 dark:text-white text-lg">{cat.title}</h3>
-                                <p className="text-sm text-gray-500">Click to view articles</p>
-                            </div>
-                        </button>
-                    ))}
-                    {categories.length === 0 && (
-                        <div className="col-span-full py-20 text-center text-gray-500">
-                            Help categories will be available soon.
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {filteredTopics.length > 0 ? filteredTopics.map((topic) => (
-                        <div 
-                            key={topic.id} 
-                            className="bg-white dark:bg-dark-surface border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm"
-                        >
-                            <button
-                                onClick={() => setExpandedTopicId(expandedTopicId === topic.id ? null : topic.id)}
-                                className="w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                                <span className="font-bold text-gray-800 dark:text-white">{topic.title}</span>
-                                <svg 
-                                    className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${expandedTopicId === topic.id ? 'rotate-180' : ''}`} 
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-                            
-                            <div 
-                                className={`overflow-hidden transition-all duration-300 ${expandedTopicId === topic.id ? 'max-h-[1000px] border-t border-gray-50 dark:border-gray-800' : 'max-h-0'}`}
-                            >
-                                <div className="p-5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line bg-gray-50/50 dark:bg-gray-900/30">
-                                    {topic.content || "No detailed information available."}
-                                </div>
-                            </div>
-                        </div>
-                    )) : (
-                        <div className="py-20 text-center text-gray-500 bg-white dark:bg-dark-surface rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
-                             Help content for this category will be available soon.
-                        </div>
-                    )}
-                </div>
-            )}
-            
-            <div className="mt-12 p-6 bg-primary/5 dark:bg-primary/10 rounded-2xl border border-primary/20 text-center">
-                <h4 className="font-bold text-primary dark:text-teal-400">Need more help?</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 mb-4">Our support team is available on WhatsApp</p>
-                <a 
-                    href="https://wa.me/923265520658" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-all shadow-md"
-                >
-                    Contact Support
-                </a>
-            </div>
-        </div>
-    );
+const shuffleArray = (array: any[]) => {
+  let currentIndex = array.length, randomIndex;
+  while (currentIndex !== 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+  return array;
 };
 
-export default HelpCenterPage;
+const DEFAULT_BANNERS: HomeBanner[] = [
+    { id: '1', title: "MEGA SALE", subtitle: "Up to 70% OFF on Electronics", color: "from-blue-600 to-blue-800", icon: "⚡", isActive: true, order: 0 },
+    { id: '2', title: "FRESH FOOD", subtitle: "Order Home Chef Meals Today", color: "from-orange-500 to-red-500", icon: "🍔", isActive: true, order: 1 },
+    { id: '3', title: "FASHION WEEK", subtitle: "New Summer Collection Arrival", color: "from-pink-500 to-rose-500", icon: "👗", isActive: true, order: 2 },
+];
+
+const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNavigate, onSaveSearch }) => {
+  const [banners, setBanners] = useState<HomeBanner[]>(DEFAULT_BANNERS);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  
+  const displayCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+
+  const sortedListings = [...listings].sort((a, b) => {
+      if (a.isPromoted && !b.isPromoted) return -1;
+      if (!a.isPromoted && b.isPromoted) return 1;
+      return 0;
+  });
+
+  const featuredListings = sortedListings.filter(l => l.isPromoted).slice(0, 10);
+  const remainingListings = sortedListings.filter(l => !l.isPromoted);
+  
+  const [randomListings, setRandomListings] = useState<Listing[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [locationData, setLocationData] = useState({ province: '', city: '', isGps: false });
+  const [filters, setFilters] = useState({
+      verifiedOnly: false,
+      openNow: false,
+      freeDelivery: false,
+      onSale: false
+  });
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  useEffect(() => {
+      if (!db) return;
+      const q = query(collection(db, 'banners'), where('isActive', '==', true));
+      
+      const unsub = onSnapshot(q, (snap) => {
+          let fetchedBanners = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as HomeBanner));
+          
+          if (fetchedBanners.length > 0) {
+              fetchedBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+              setBanners(fetchedBanners);
+          } else {
+              setBanners(DEFAULT_BANNERS);
+          }
+      }, (err) => {
+          console.error("Banners fetch error:", err.message);
+      });
+      return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (remainingListings.length > 0) {
+      setRandomListings(shuffleArray([...remainingListings]).slice(0, 8));
+    }
+  }, [listings]); 
+
+  useEffect(() => {
+      if (banners.length <= 1) return;
+      const interval = setInterval(() => {
+          setCurrentBannerIndex((prevIndex) => (prevIndex + 1) % banners.length);
+      }, 5000); 
+      return () => clearInterval(interval);
+  }, [banners.length]);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+      setTouchEnd(null); 
+      setTouchStart(e.targetTouches[0].clientX);
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+      setTouchEnd(e.targetTouches[0].clientX);
+  }
+
+  const onTouchEnd = () => {
+      if (!touchStart || !touchEnd || banners.length <= 1) return;
+      const distance = touchStart - touchEnd;
+      if (distance > 50) setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
+      if (distance < -50) setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
+  }
+
+  const handleBannerClick = (banner: HomeBanner) => {
+      if (!banner.link) return;
+      const targetListing = listings.find(l => l.id === banner.link);
+      if (targetListing) onNavigate('details', { listing: targetListing });
+      else onNavigate('listings', { query: banner.link });
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) onNavigate('listings', { query: searchQuery });
+  };
+
+  const handleApplyFilters = () => {
+      setIsFilterOpen(false);
+      const filterSummary = [];
+      if (locationData.city) filterSummary.push(locationData.city);
+      if (filters.verifiedOnly) filterSummary.push("Verified");
+      if (filters.onSale) filterSummary.push("On Sale");
+      const q = filterSummary.length > 0 ? filterSummary.join(" ") : "All Listings";
+      onNavigate('listings', { query: q });
+  };
+
+  const locationDisplay = locationData.isGps 
+    ? "📍 Current Location" 
+    : (locationData.city ? `${locationData.city}` : "Pakistan");
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-primary dark:bg-dark-primary py-2 px-4 rounded-b-xl shadow-sm -mx-4 mb-2 transition-all sticky top-0 z-40">
+        <div className="container mx-auto max-w-4xl">
+            <div className="flex items-center justify-between mb-2">
+                <button 
+                    onClick={() => setIsFilterOpen(true)}
+                    className="flex items-center text-white/90 hover:text-white text-xs font-medium truncate max-w-[70%]"
+                >
+                    <svg className="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+                    <span className="truncate">{locationDisplay}</span>
+                    <svg className="w-3 h-3 ml-0.5 text-white/70" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                </button>
+                <div className="text-white text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">RizqDaan</div>
+            </div>
+            <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+                 <input
+                    type="text"
+                    placeholder="Search anything..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-10 py-2 rounded-lg border-0 bg-white text-gray-800 focus:ring-0 shadow-sm text-sm transition-all placeholder-gray-400"
+                />
+                <svg className="w-4 h-4 text-gray-400 absolute left-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <button type="button" onClick={() => setIsFilterOpen(true)} className="absolute right-2 p-1 text-gray-400 hover:text-primary transition-colors border-l border-gray-200 pl-2">
+                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </button>
+            </form>
+        </div>
+      </div>
+
+      <div 
+        className="relative w-full overflow-hidden rounded-xl shadow-sm group h-36 sm:h-48 md:h-56 touch-pan-y cursor-pointer"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+          <div 
+            className="flex transition-transform duration-500 ease-in-out h-full"
+            style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+          >
+              {banners.map((banner) => (
+                  <div 
+                    key={banner.id} 
+                    onClick={() => handleBannerClick(banner)}
+                    className={`min-w-full h-full flex items-center justify-between px-5 md:px-12 text-white relative overflow-hidden`}
+                  >
+                      {banner.imageUrl ? (
+                          <img src={banner.imageUrl} className="absolute inset-0 w-full h-full object-cover z-0" alt="" />
+                      ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} z-0`}></div>
+                      )}
+
+                      <div className="z-10 max-w-[65%]">
+                          {banner.title && (
+                              <>
+                                  <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-1 inline-block border border-white/30 backdrop-blur-sm">Promotion</span>
+                                  <h2 className="text-xl md:text-3xl font-extrabold mb-1 drop-shadow-md leading-tight uppercase">{banner.title}</h2>
+                              </>
+                          )}
+                          {banner.subtitle && <p className="text-xs md:text-sm font-medium opacity-90 mb-3 drop-shadow-sm">{banner.subtitle}</p>}
+                      </div>
+                      
+                      {!banner.imageUrl && (
+                          <div className="text-[60px] md:text-[100px] opacity-20 absolute right-2 md:right-10 rotate-12 pointer-events-none select-none z-10">
+                            {banner.icon}
+                          </div>
+                      )}
+                  </div>
+              ))}
+          </div>
+      </div>
+
+      <div>
+        <div className="flex justify-between items-center mb-2 px-1">
+            <h3 className="text-sm font-bold text-gray-800 dark:text-white">Categories</h3>
+            <span className="text-[10px] text-primary font-medium cursor-pointer" onClick={() => onNavigate('listings')}>View All</span>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-2">
+          {displayCategories.slice(0, 8).map((category) => (
+            <div
+              key={category.id}
+              onClick={() => onNavigate('subcategories', { category })}
+              className="group flex flex-col items-center p-1.5 bg-white dark:bg-dark-surface rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer text-center border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+            >
+              <div className="h-8 w-8 flex items-center justify-center text-primary dark:text-gray-200 mb-1">
+                {renderIconByKey(category.icon)}
+              </div>
+              <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 leading-tight line-clamp-1">{category.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex justify-between items-center mb-2 mt-2 px-1">
+            <h2 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-1">🔥 Featured Listings</h2>
+            <span className="text-[10px] text-primary font-medium cursor-pointer" onClick={() => onNavigate('listings')}>See All</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {featuredListings.length > 0 ? featuredListings.map((listing) => (
+            <ListingCard key={listing.id} listing={listing} onViewDetails={(l) => onNavigate('details', { listing: l })} />
+          )) : <p className="col-span-full text-center text-xs text-gray-500 py-4">No featured items.</p>}
+        </div>
+      </div>
+
+      <hr className="border-gray-100 dark:border-gray-800 my-2" />
+
+      <div>
+        <h2 className="text-sm font-bold text-gray-800 dark:text-white mb-2 px-1">Fresh Recommendations</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {randomListings.map((listing, index) => (
+            <ListingCard key={`${listing.id}-${index}`} listing={listing} onViewDetails={(l) => onNavigate('details', { listing: l })} />
+          ))}
+        </div>
+      </div>
+      
+      {isLoading && <div className="flex justify-center items-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div></div>}
+    </div>
+  );
+};
+
+export default HomePage;
