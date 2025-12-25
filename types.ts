@@ -67,7 +67,7 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon?: ReactElement | string; 
+  icon: string; // Strictly string key to prevent circular reference errors
   subcategories: SubCategory[];
 }
 
@@ -96,6 +96,17 @@ export interface HelpTopic {
     isActive: boolean;
 }
 
+// GLOBAL APP SETTINGS
+export interface AppSettings {
+    supportWhatsapp: string;
+    supportEmail: string;
+    maintenanceMode: boolean;
+    appName: string;
+    facebookUrl: string;
+    instagramUrl: string;
+    maintenanceMessage?: string;
+}
+
 // SHARED NAVIGATION TYPES
 export type AppView = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center';
 
@@ -107,9 +118,6 @@ export interface NavigatePayload {
   targetVendorId?: string;
 }
 
-/**
- * Added to fix import error in ManageFinance.tsx
- */
 export interface WithdrawalRequest {
   id: string;
   userId: string;
@@ -123,15 +131,12 @@ export interface WithdrawalRequest {
   adminNote?: string;
 }
 
-/**
- * Added to fix import errors in ManageFinance.tsx, AddFundsPage.tsx, and WalletHistoryPage.tsx
- */
 export interface DepositRequest {
     id: string;
     userId: string;
     userName: string;
     amount: number;
-    method: string; // 'JazzCash' | 'EasyPaisa' | 'Bank'
+    method: string; 
     transactionId: string;
     senderPhone: string;
     screenshotUrl?: string;
@@ -140,9 +145,6 @@ export interface DepositRequest {
     adminNote?: string;
 }
 
-/**
- * Added to fix import errors in ManageFinance.tsx and AddFundsPage.tsx
- */
 export interface PaymentInfo {
     bankName: string;
     accountTitle: string;
@@ -151,9 +153,6 @@ export interface PaymentInfo {
     customNote?: string; 
 }
 
-/**
- * Added for completeness and consistency across type definitions
- */
 export interface PromotionRequest {
     id: string;
     vendorId: string;
@@ -191,9 +190,8 @@ export interface User {
       totalInvited: number;
       totalEarned: number;
   };
-  /**
-   * Added to support private administrative notes
-   */
+  // FIX: Added memberSince property to User interface
+  memberSince?: string;
   adminNotes?: string; 
   wallet?: {
     balance: number;
