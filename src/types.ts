@@ -246,6 +246,8 @@ export interface User {
       totalInvited: number;
       totalEarned: number;
   };
+  // FIX: Added memberSince property to User interface in src/types.ts
+  memberSince?: string;
 
   // Admin CRM
   adminNotes?: string; // Private notes for admin
