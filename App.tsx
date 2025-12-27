@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Unsubscribe } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Unsubscribe, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, updateDoc, collection, onSnapshot, query, orderBy, limit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 
@@ -201,6 +202,10 @@ const App: React.FC = () => {
   const handleSignup = async (userData: any) => {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password || 'password123');
+        
+        // --- REAL EMAIL VERIFICATION ---
+        await sendEmailVerification(userCredential.user);
+        
         const newUserId = userCredential.user.uid;
         const newUserProfile: User = {
             id: newUserId, name: userData.name, email: userData.email, phone: userData.phone,
@@ -210,7 +215,7 @@ const App: React.FC = () => {
             walletHistory: [], favorites: []
         };
         await setDoc(doc(db, "users", newUserId), newUserProfile);
-        return { success: true, message: 'Signup successful!', user: newUserProfile };
+        return { success: true, message: 'Signup successful! Verification email sent.', user: newUserProfile };
     } catch (error: any) { return { success: false, message: error.message }; }
   };
 
