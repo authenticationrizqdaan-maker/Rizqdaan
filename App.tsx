@@ -87,7 +87,8 @@ const App: React.FC = () => {
     let userUnsubscribe: Unsubscribe | null = null;
 
     const authUnsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
+      // MANDATORY VERIFICATION CHECK: Trap unverified users
+      if (firebaseUser && firebaseUser.emailVerified) {
         if (db) {
             try {
                 userUnsubscribe = onSnapshot(doc(db, "users", firebaseUser.uid), async (docSnap) => {
@@ -103,7 +104,7 @@ const App: React.FC = () => {
                     } else {
                         const newUser: User = { 
                             id: firebaseUser.uid, email: firebaseUser.email || '', 
-                            name: firebaseUser.displayName || 'User', phone: '', shopName: '', shopAddress: '', isVerified: false,
+                            name: firebaseUser.displayName || 'User', phone: '', shopName: '', shopAddress: '', isVerified: true,
                             referralCode: generateReferralCode(firebaseUser.displayName || 'USER'),
                             favorites: [], referredBy: null,
                             wallet: { balance: 0, totalSpend: 0, pendingDeposit: 0, pendingWithdrawal: 0 },
@@ -117,6 +118,10 @@ const App: React.FC = () => {
         }
       } else {
         if (userUnsubscribe) { userUnsubscribe(); userUnsubscribe = null; }
+        // If logged in but NOT verified, force sign out to prevent session hijacking
+        if (firebaseUser && !firebaseUser.emailVerified) {
+            signOut(auth);
+        }
         setUser(prev => (prev?.id === 'admin-demo' ? prev : null));
       }
     });
@@ -194,9 +199,22 @@ const App: React.FC = () => {
             const adminUser: User = { id: 'admin-demo', name: 'Admin', email: 'admin@rizqdaan.com', phone: '0000', shopName: 'Admin HQ', shopAddress: 'Cloud', isVerified: true, isAdmin: true };
             setUser(adminUser); setView('admin'); return { success: true, message: 'Logged in as Demo Admin' };
         }
-        await signInWithEmailAndPassword(auth, email, password);
+        
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // CHECK VERIFICATION STATUS ON LOGIN
+        if (!userCredential.user.emailVerified) {
+            await signOut(auth);
+            return { 
+                success: false, 
+                message: 'Your email is not verified. Please verify your email before logging in.' 
+            };
+        }
+
         return { success: true, message: 'Login successful!' };
-    } catch (error: any) { return { success: false, message: error.message }; }
+    } catch (error: any) { 
+        return { success: false, message: error.message }; 
+    }
   };
 
   const handleSignup = async (userData: any) => {
@@ -215,15 +233,17 @@ const App: React.FC = () => {
             walletHistory: [], favorites: []
         };
         await setDoc(doc(db, "users", newUserId), newUserProfile);
+        
+        // MANDATORY: LOG OUT AFTER SIGNUP
+        await signOut(auth);
+        
         return { success: true, message: 'Signup successful! Verification email sent.', user: newUserProfile };
     } catch (error: any) { return { success: false, message: error.message }; }
   };
 
   const handleVerifyAndLogin = async (userId: string) => {
-      try {
-          await updateDoc(doc(db, "users", userId), { isVerified: true });
-          setView('account');
-      } catch (e) {}
+      // This is now redundant since we use Firebase Auth's verified property
+      setView('auth');
   };
 
   const renderView = () => {
