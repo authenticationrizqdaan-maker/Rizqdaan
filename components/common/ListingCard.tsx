@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { Listing } from '../../types';
 import { db } from '../../firebaseConfig';
-import { collection, query, where, getDocs, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, increment, doc } from 'firebase/firestore';
 
 interface ListingCardProps {
   listing: Listing;
@@ -10,66 +10,66 @@ interface ListingCardProps {
 }
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, onViewDetails }) => {
-  // --- ANALYTICS LOGIC: IMPRESSION TRACKING ---
+  // --- ANALYTICS LOGIC: IMPRESSION TRACKING (SYNCED) ---
   useEffect(() => {
     let isMounted = true;
-    // Rule: Count EVERY time a featured listing is shown (rendered)
-    if (listing.isPromoted && db) {
-      const trackImpression = async () => {
+    if (db) {
+      const trackInteraction = async () => {
         try {
-          // Simple query to avoid composite index requirements
-          const q = query(
-            collection(db, 'campaigns'), 
-            where('listingId', '==', listing.id)
-          );
-          const snap = await getDocs(q);
-          if (isMounted && !snap.empty) {
-            // Find the currently active campaign for this listing
-            const activeCampaignDoc = snap.docs.find(doc => doc.data().status === 'active');
-            
-            if (activeCampaignDoc) {
-              const d = activeCampaignDoc.data();
-              const newImpr = (d.impressions || 0) + 1;
-              const clicks = d.clicks || 0;
-              const newCtr = Number(((clicks / newImpr) * 100).toFixed(2));
+          // Rule: Always update total views on the listing first
+          const listingRef = doc(db, 'listings', listing.id);
+          await updateDoc(listingRef, { views: increment(1) });
 
-              await updateDoc(activeCampaignDoc.ref, {
-                impressions: increment(1),
-                ctr: newCtr
-              });
+          // Rule: If promoted, also update the specific campaign impressions
+          if (listing.isPromoted) {
+            const q = query(
+              collection(db, 'campaigns'), 
+              where('listingId', '==', listing.id),
+              where('status', '==', 'active')
+            );
+            const snap = await getDocs(q);
+            if (isMounted && !snap.empty) {
+                const activeCampaignDoc = snap.docs[0];
+                const d = activeCampaignDoc.data();
+                const newImpr = (d.impressions || 0) + 1;
+                const clicks = d.clicks || 0;
+                const newCtr = Number(((clicks / newImpr) * 100).toFixed(2));
+
+                await updateDoc(activeCampaignDoc.ref, {
+                    impressions: increment(1),
+                    ctr: newCtr
+                });
             }
           }
         } catch (e) {
-          console.warn("Analytics Impression failed: ", e);
+          console.warn("View tracking failed: ", e);
         }
       };
-      trackImpression();
+      trackInteraction();
     }
     return () => { isMounted = false; };
   }, [listing.id, listing.isPromoted]);
 
-  // --- ANALYTICS LOGIC: CLICK TRACKING ---
   const handleCardClick = async () => {
     if (listing.isPromoted && db) {
       try {
         const q = query(
           collection(db, 'campaigns'), 
-          where('listingId', '==', listing.id)
+          where('listingId', '==', listing.id),
+          where('status', '==', 'active')
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
-          const activeCampaignDoc = snap.docs.find(doc => doc.data().status === 'active');
-          if (activeCampaignDoc) {
-            const d = activeCampaignDoc.data();
-            const newClicks = (d.clicks || 0) + 1;
-            const impr = d.impressions || 1; // Avoid division by zero
-            const newCtr = Number(((newClicks / impr) * 100).toFixed(2));
+          const activeCampaignDoc = snap.docs[0];
+          const d = activeCampaignDoc.data();
+          const newClicks = (d.clicks || 0) + 1;
+          const impr = d.impressions || 1;
+          const newCtr = Number(((newClicks / impr) * 100).toFixed(2));
 
-            await updateDoc(activeCampaignDoc.ref, {
-              clicks: increment(1),
-              ctr: newCtr
-            });
-          }
+          await updateDoc(activeCampaignDoc.ref, {
+            clicks: increment(1),
+            ctr: newCtr
+          });
         }
       } catch (e) {
         console.warn("Analytics Click failed: ", e);
