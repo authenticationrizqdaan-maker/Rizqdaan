@@ -25,18 +25,13 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
     const [newComment, setNewComment] = useState('');
     const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-    
     const [vendorData, setVendorData] = useState<User | null>(null);
     const [vendorStats, setVendorStats] = useState({ rating: 0, reviewCount: 0 });
-
     const images = listing.images && listing.images.length > 0 ? listing.images : [listing.imageUrl];
     const [activeImage, setActiveImage] = useState(images[0]);
     const [isFavorite, setIsFavorite] = useState(false);
     const [contactPopup, setContactPopup] = useState<{ isOpen: boolean; type: 'call' | 'whatsapp'; number: string } | null>(null);
-    
-    const relatedListings = listings
-        .filter(l => l.category === listing.category && l.id !== listing.id)
-        .slice(0, 6);
+    const relatedListings = listings.filter(l => l.category === listing.category && l.id !== listing.id).slice(0, 6);
 
     useEffect(() => {
         setReviews(listing.reviews || []);
@@ -46,39 +41,32 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
     }, [listing.id]);
 
     useEffect(() => {
-        if (user && user.favorites) {
-            setIsFavorite(user.favorites.includes(listing.id));
-        }
+        if (user && user.favorites) setIsFavorite(user.favorites.includes(listing.id));
     }, [user, listing.id]);
 
-    useEffect(() => {
-        if (db) {
+    // --- CORE SYNC LOGIC: TRACK CONVERSION ---
+    const trackConversion = async (type: 'call' | 'msg' | 'wa') => {
+        if (!db) return;
+        try {
+            // 1. Update listing document with specific interaction type
             const listingRef = doc(db, 'listings', listing.id);
-            updateDoc(listingRef, { views: increment(1) }).catch(() => {});
-        }
-    }, [listing.id]);
+            const field = type === 'call' ? 'calls' : 'messages';
+            await updateDoc(listingRef, { [field]: increment(1) });
 
-    // --- ANALYTICS LOGIC: CONVERSION TRACKING HELPER ---
-    const trackConversion = async () => {
-        // Rule: Count ONLY when meaningful interaction happens on a featured listing
-        if (listing.isPromoted && db) {
-            try {
+            // 2. If it's a promoted listing, update campaign conversions
+            if (listing.isPromoted) {
                 const q = query(
                     collection(db, 'campaigns'), 
-                    where('listingId', '==', listing.id)
+                    where('listingId', '==', listing.id),
+                    where('status', '==', 'active')
                 );
                 const snap = await getDocs(q);
                 if (!snap.empty) {
-                    const activeCampaignDoc = snap.docs.find(doc => doc.data().status === 'active');
-                    if (activeCampaignDoc) {
-                        await updateDoc(activeCampaignDoc.ref, {
-                            conversions: increment(1)
-                        });
-                    }
+                    await updateDoc(snap.docs[0].ref, { conversions: increment(1) });
                 }
-            } catch (e) {
-                console.warn("Analytics Conversion failed", e);
             }
+        } catch (e) {
+            console.warn("Conversion tracking failed", e);
         }
     };
 
@@ -87,27 +75,16 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
             if (!db || !listing.vendorId) return;
             try {
                 const userSnap = await getDoc(doc(db, "users", listing.vendorId));
-                if (userSnap.exists()) {
-                    setVendorData(userSnap.data() as User);
-                }
+                if (userSnap.exists()) setVendorData(userSnap.data() as User);
                 const q = query(collection(db, "listings"), where("vendorId", "==", listing.vendorId));
                 const querySnapshot = await getDocs(q);
-                let totalRating = 0;
-                let count = 0;
+                let totalRating = 0; let count = 0;
                 querySnapshot.forEach((doc) => {
                     const l = doc.data();
-                    if (l.rating > 0) {
-                        totalRating += l.rating;
-                        count++;
-                    }
+                    if (l.rating > 0) { totalRating += l.rating; count++; }
                 });
-                setVendorStats({
-                    rating: count > 0 ? totalRating / count : 0,
-                    reviewCount: count
-                });
-            } catch (e) {
-                console.error("Error fetching vendor details", e);
-            }
+                setVendorStats({ rating: count > 0 ? totalRating / count : 0, reviewCount: count });
+            } catch (e) {}
         };
         fetchVendorInfo();
     }, [listing.vendorId]);
@@ -131,49 +108,24 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
     };
 
     const handleActionClick = (type: 'call' | 'msg' | 'wa') => {
-        // Track analytics conversion event
-        trackConversion();
-
-        if (db) {
-            const field = type === 'call' ? 'calls' : 'messages';
-            updateDoc(doc(db, 'listings', listing.id), { [field]: increment(1) }).catch(() => {});
-        }
-        
+        trackConversion(type);
         const sellerPhone = vendorData?.phone || listing.contact.phone;
-
-        if (type === 'call') {
-            setContactPopup({ isOpen: true, type: 'call', number: sellerPhone });
-        } else if (type === 'wa') {
-            const waNumber = vendorData?.phone || listing.contact.whatsapp || sellerPhone;
-            setContactPopup({ isOpen: true, type: 'whatsapp', number: waNumber });
-        }
+        if (type === 'call') setContactPopup({ isOpen: true, type: 'call', number: sellerPhone });
+        else if (type === 'wa') setContactPopup({ isOpen: true, type: 'whatsapp', number: sellerPhone });
     };
 
     const handleReviewSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newRating === 0 || !newComment.trim() || !user) return;
         setIsSubmittingReview(true);
-        const newReview: Review = {
-            id: `r-${Date.now()}`,
-            author: user.name,
-            rating: newRating,
-            comment: newComment.trim(),
-            date: new Date().toISOString().split('T')[0]
-        };
+        const newReview: Review = { id: `r-${Date.now()}`, author: user.name, rating: newRating, comment: newComment.trim(), date: new Date().toISOString().split('T')[0] };
         setReviews([newReview, ...reviews]);
         setIsReviewFormOpen(false);
-        if(db) {
-            try {
-                const listingRef = doc(db, 'listings', listing.id);
-                await updateDoc(listingRef, { reviews: arrayUnion(newReview) });
-            } catch(e) {}
-        }
+        if(db) await updateDoc(doc(db, 'listings', listing.id), { reviews: arrayUnion(newReview) }).catch(() => {});
         setIsSubmittingReview(false);
     };
 
-    const discountPercent = listing.originalPrice 
-        ? Math.round(((listing.originalPrice - listing.price) / listing.originalPrice) * 100)
-        : 0;
+    const discountPercent = listing.originalPrice ? Math.round(((listing.originalPrice - listing.price) / listing.originalPrice) * 100) : 0;
 
   return (
     <div className="bg-gray-50 dark:bg-black min-h-screen pb-32 relative">
@@ -218,9 +170,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <h2 className="text-3xl font-black text-primary dark:text-white leading-tight">Rs. {listing.price.toLocaleString()}</h2>
                   {listing.originalPrice && <p className="text-sm text-gray-400 line-through">Rs. {listing.originalPrice.toLocaleString()}</p>}
               </div>
-              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                  ID: {listing.id.substring(0, 8)}
-              </div>
+              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">ID: {listing.id.substring(0, 8)}</div>
           </div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">{listing.title}</h1>
           <div className="flex items-center justify-between pt-4 border-t border-gray-50 dark:border-gray-800">
@@ -234,9 +184,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
 
       <SectionWrapper>
           <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Description</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-              {listing.description}
-          </p>
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{listing.description}</p>
       </SectionWrapper>
 
       <SectionWrapper>
@@ -253,13 +201,9 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <h4 className="text-base font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors">{vendorData?.shopName || listing.vendorName}</h4>
                   <p className="text-xs text-gray-500 mb-1">Member since {vendorData?.memberSince || '2024'}</p>
                   <div className="flex items-center gap-2">
-                      <div className="flex items-center text-yellow-500 text-xs font-bold">
-                          {vendorStats.rating.toFixed(1)} <svg className="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.367 2.446a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.05 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69L9.049 2.927z"/></svg>
-                      </div>
-                      <span className="text-[10px] text-gray-400 font-bold uppercase">({vendorStats.reviewCount} Active Ads)</span>
+                      <div className="flex items-center text-yellow-500 text-xs font-bold">{vendorStats.rating.toFixed(1)} <svg className="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.367 2.446a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.05 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69L9.049 2.927z"/></svg></div>
                   </div>
               </div>
-              <svg className="w-6 h-6 text-gray-300 group-hover:text-primary transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </div>
       </SectionWrapper>
 
@@ -269,7 +213,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
                   Call Seller
               </button>
-              <button onClick={() => { if (!user) { alert("Please login to chat."); return; } trackConversion(); onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-dark-surface border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white rounded-xl font-bold shadow-md hover:bg-gray-50 active:scale-95 transition-all">
+              <button onClick={() => { if (!user) { alert("Please login to chat."); return; } handleActionClick('msg'); onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-dark-surface border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white rounded-xl font-bold shadow-md hover:bg-gray-50 active:scale-95 transition-all">
                   <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                   Message
               </button>
@@ -280,88 +224,8 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
           </div>
       </SectionWrapper>
 
-      <SectionWrapper>
-          <div className="flex items-center gap-2 mb-3">
-              <svg className="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-800 dark:text-white">Safety Tips</h3>
-          </div>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-              {[
-                  "Meet the seller in a safe, public place",
-                  "Inspect the item carefully before paying",
-                  "Never pay in advance through online transfers",
-                  "Be cautious of unrealistically low prices"
-              ].map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-500">
-                      <span className="text-primary font-bold mt-0.5">•</span>
-                      {tip}
-                  </li>
-              ))}
-          </ul>
-      </SectionWrapper>
-
-      <SectionWrapper>
-          <div className="flex justify-between items-center mb-6">
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-800 dark:text-white">User Reviews ({reviews.length})</h3>
-              {user && (
-                  <button onClick={() => setIsReviewFormOpen(!isReviewFormOpen)} className="text-xs font-bold text-primary px-3 py-1.5 bg-primary/5 rounded-full">
-                      {isReviewFormOpen ? 'Cancel' : 'Write Review'}
-                  </button>
-              )}
-          </div>
-          {isReviewFormOpen && (
-              <form onSubmit={handleReviewSubmit} className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl animate-fade-in">
-                  <div className="flex items-center gap-3 mb-4">
-                      <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Your Rating:</span>
-                      <div className="flex">
-                          {[1,2,3,4,5].map(star => (
-                              <button key={star} type="button" onClick={() => setNewRating(star)} onMouseEnter={() => setHoverRating(star)} onMouseLeave={() => setHoverRating(0)} className="p-1">
-                                  <svg className={`w-7 h-7 ${star <= (hoverRating || newRating) ? 'text-yellow-400' : 'text-gray-300'}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.367 2.446a1 1 0 00-.364 1.118l1.287 3.957c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.175 0l-3.367 2.446c-.784.57-1.838-.197-1.539-1.118l1.287-3.957a1 1 0 00-.364-1.118L2.05 9.384c-.783-.57-.38-1.81.588-1.81h4.162a1 1 0 00.95-.69L9.049 2.927z" /></svg>
-                              </button>
-                          ))}
-                      </div>
-                  </div>
-                  <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} className="w-full p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary h-24 mb-4" placeholder="Describe your experience with this seller..."/>
-                  <button type="submit" disabled={newRating === 0 || !newComment.trim() || isSubmittingReview} className="w-full py-3 bg-primary text-white font-bold rounded-xl disabled:opacity-50">Post Review</button>
-              </form>
-          )}
-          <div className="space-y-6">
-              {reviews.length > 0 ? reviews.map(r => (
-                  <div key={r.id} className="border-b border-gray-50 dark:border-gray-800 pb-6 last:border-0">
-                      <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center font-bold text-xs text-primary">{r.author.charAt(0)}</div>
-                              <div>
-                                  <h5 className="text-sm font-bold text-gray-900 dark:text-white">{r.author}</h5>
-                                  <div className="flex text-yellow-400 text-[10px]">{[...Array(5)].map((_, i) => <span key={i}>{i < r.rating ? '★' : '☆'}</span>)}</div>
-                              </div>
-                          </div>
-                          <span className="text-[10px] text-gray-400 font-medium">{r.date}</span>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 pl-10 leading-relaxed italic">"{r.comment}"</p>
-                  </div>
-              )) : (
-                  <div className="py-12 text-center text-gray-400">
-                      <svg className="w-12 h-12 mx-auto mb-2 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
-                      <p className="text-sm">Be the first to review this listing!</p>
-                  </div>
-              )}
-          </div>
-      </SectionWrapper>
-
-      {relatedListings.length > 0 && (
-          <div className="w-full bg-gray-100 dark:bg-gray-900/50 p-4 md:px-8">
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 mb-6">Similar Recommendations</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {relatedListings.map(l => (
-                      <ListingCard key={l.id} listing={l} onViewDetails={(item) => onNavigate('details', { listing: item })} />
-                  ))}
-              </div>
-          </div>
-      )}
-
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-gray-800 p-4 md:hidden z-50 flex gap-3 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
-          <button onClick={() => { if (!user) { alert("Please login to chat."); return; } trackConversion(); onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} className="flex-1 py-3.5 bg-white dark:bg-gray-800 border-2 border-primary text-primary font-black rounded-xl text-sm">CHAT</button>
+          <button onClick={() => { if (!user) { alert("Please login to chat."); return; } handleActionClick('msg'); onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} className="flex-1 py-3.5 bg-white dark:bg-gray-800 border-2 border-primary text-primary font-black rounded-xl text-sm">CHAT</button>
           <button onClick={() => handleActionClick('call')} className="flex-1 py-3.5 bg-primary text-white font-black rounded-xl text-sm text-center shadow-lg shadow-primary/30">CALL</button>
       </div>
 
@@ -382,9 +246,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                       <p className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold tracking-widest mb-2">Seller's Number</p>
                       <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-6 select-all">{contactPopup.number}</h2>
                       <div className="space-y-3">
-                          <a href={contactPopup.type === 'call' ? `tel:${contactPopup.number}` : `https://wa.me/${contactPopup.number.replace(/[^0-9]/g, '')}?text=Hi, I am interested in your ad: ${listing.title}`} target={contactPopup.type === 'whatsapp' ? "_blank" : undefined} rel={contactPopup.type === 'whatsapp' ? "noreferrer" : undefined} className={`block w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-transform active:scale-95 ${contactPopup.type === 'whatsapp' ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:bg-primary-dark'}`}>
-                              {contactPopup.type === 'call' ? 'Call Now' : 'Send Message'}
-                          </a>
+                          <a href={contactPopup.type === 'call' ? `tel:${contactPopup.number}` : `https://wa.me/${contactPopup.number.replace(/[^0-9]/g, '')}?text=Hi, I am interested in your ad: ${listing.title}`} target="_blank" rel="noreferrer" className={`block w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-transform active:scale-95 ${contactPopup.type === 'whatsapp' ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:bg-primary-dark'}`}>{contactPopup.type === 'call' ? 'Call Now' : 'Send Message'}</a>
                           <button onClick={() => { navigator.clipboard.writeText(contactPopup.number); alert("Number copied!"); }} className="block w-full py-3 text-gray-600 dark:text-gray-300 font-bold hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">Copy Number</button>
                       </div>
                   </div>
