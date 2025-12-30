@@ -43,15 +43,14 @@ jobs:
 
       - name: Generate Native Android Icons
         run: |
-          # Create assets directory if it doesn't exist
-          mkdir -p assets
-          # If icon.png exists in root, copy it to assets for the generator
+          # Use icon.png from the root directory
           if [ -f "icon.png" ]; then
-            cp icon.png assets/icon.png
-            # Generate icons for Android specifically
-            npx @capacitor/assets generate --android --icon-path assets/icon.png || echo "Icon generation failed, using defaults"
+            echo "✅ icon.png found. Generating Android resources..."
+            # Force generation of icons using the root file
+            npx capacitor-assets generate --android --icon-path icon.png || echo "⚠️ Icon generation failed, check if image is square (1024x1024 recommended)"
           else
-            echo "icon.png not found in root directory. Skipping custom icon generation."
+            echo "❌ icon.png NOT found in root directory. Please upload icon.png to the main folder."
+            exit 1
           fi
 
       - name: Inject Android Permissions
@@ -65,15 +64,15 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          # Build APK
+          # Clean build to ensure icon updates are applied
+          ./gradlew clean
           ./gradlew assembleDebug
-          # Build AAB
           ./gradlew bundleDebug
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: RizqDaan-Build-Package
+          name: RizqDaan-Android-Build
           path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/bundle/debug/app-debug.aab
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/bundle/debug/*.aab
