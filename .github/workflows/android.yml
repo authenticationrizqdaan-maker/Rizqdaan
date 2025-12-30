@@ -43,10 +43,15 @@ jobs:
 
       - name: Generate Native Android Icons
         run: |
+          # Create assets directory if it doesn't exist
           mkdir -p assets
+          # If icon.png exists in root, copy it to assets for the generator
           if [ -f "icon.png" ]; then
             cp icon.png assets/icon.png
-            npx capacitor-assets generate --android || echo "Icon generation skipped"
+            # Generate icons for Android specifically
+            npx @capacitor/assets generate --android --icon-path assets/icon.png || echo "Icon generation failed, using defaults"
+          else
+            echo "icon.png not found in root directory. Skipping custom icon generation."
           fi
 
       - name: Inject Android Permissions
@@ -56,14 +61,19 @@ jobs:
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />' $MANIFEST_PATH
           fi
 
-      - name: Build APK (Debug)
+      - name: Build APK & AAB (Debug)
         run: |
           cd android
           chmod +x gradlew
+          # Build APK
           ./gradlew assembleDebug
+          # Build AAB
+          ./gradlew bundleDebug
 
-      - name: Upload APK
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: RizqDaan-Debug-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: RizqDaan-Build-Package
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/debug/app-debug.aab
