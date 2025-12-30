@@ -3,7 +3,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#002f34" />
+  <link rel="manifest" href="/manifest.json" />
   <title>RizqDaan - Local Business Listings</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -55,14 +57,14 @@
     "firebase/": "https://esm.sh/firebase@^12.7.0/",
     "vite": "https://esm.sh/vite@^7.3.0",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.0"
+    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.0",
+    "@capacitor/push-notifications": "https://esm.sh/@capacitor/push-notifications@^8.0.0",
+    "@capacitor/local-notifications": "https://esm.sh/@capacitor/local-notifications@^6.1.1"
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-primary-light dark:bg-dark-bg font-poppins">
+<body class="bg-primary-light dark:bg-dark-bg font-poppins antialiased">
   <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
