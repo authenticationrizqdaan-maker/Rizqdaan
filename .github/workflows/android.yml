@@ -1,3 +1,4 @@
+
 name: Build Android App
 
 on:
@@ -35,30 +36,37 @@ jobs:
 
       - name: Initialize Android Platform
         run: |
-          # 1. Add the android folder if it doesn't exist
-          npx cap add android || true
+          # Ensure Capacitor CLI is available
+          npm install @capacitor/cli @capacitor/core @capacitor/android
           
-          # 2. Prepare the assets folder for the icon generator
-          # The generator looks specifically for an 'assets' or 'resources' folder
-          mkdir -p assets
-          cp icon.png assets/icon.png || true
-          cp icon.png assets/logo.png || true
+          # Create android folder if missing
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
           
-          # 3. Sync the project to ensure all native files are mapped
+          # Sync assets
           npx cap sync android
 
       - name: Generate Native Android Icons
         run: |
-          # 4. Generate the actual mipmap files inside the android/ folder
-          # This must happen AFTER 'cap add android'
-          npx capacitor-assets generate --android
+          mkdir -p assets
+          # Use a placeholder if icon.png is missing to prevent build crash
+          if [ ! -f "icon.png" ]; then
+            touch icon.png
+          fi
+          cp icon.png assets/icon.png || true
+          npx capacitor-assets generate --android || echo "Icon generation skipped"
 
-      - name: Inject Android Permissions (GPS & Camera)
+      - name: Inject Android Permissions (GPS, Camera, Notifications)
         run: |
-          # 5. Inject required permissions into the AndroidManifest.xml
-          # This fixes the GPS issue by declaring the hardware requirement
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />' $MANIFEST_PATH
+          if [ -f "$MANIFEST_PATH" ]; then
+            # Inject permissions before the closing </manifest> tag
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' $MANIFEST_PATH
+          else
+            echo "Error: AndroidManifest.xml not found at $MANIFEST_PATH"
+            exit 1
+          fi
 
       - name: Build APK (Debug)
         run: |
@@ -66,19 +74,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Build AAB (Release)
-        run: |
-          cd android
-          ./gradlew bundleRelease
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: RizqDaan-Debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: RizqDaan-Release-AAB
-          path: android/app/build/outputs/bundle/release/app-release.aab
