@@ -12,9 +12,9 @@ interface ListingDetailsPageProps {
   onNavigate: (view: 'listings' | 'details' | 'chats' | 'vendor-profile', payload?: { listing?: Listing, targetUser?: { id: string, name: string }, targetVendorId?: string }) => void;
 }
 
-const SectionWrapper = ({ children, title, className = "" }: { children?: React.ReactNode, title?: string, className?: string }) => (
-    <section className={`w-full bg-white dark:bg-dark-surface border-b border-gray-100 dark:border-gray-800 p-5 md:p-8 ${className}`}>
-        {title && <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">{title}</h3>}
+const SectionWrapper = ({ children, title, className = "", noBorder = false }: { children?: React.ReactNode, title?: string, className?: string, noBorder?: boolean }) => (
+    <section className={`w-full bg-white dark:bg-dark-surface ${!noBorder ? 'border-b border-gray-100 dark:border-gray-800' : ''} p-5 md:p-8 ${className}`}>
+        {title && <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-5">{title}</h3>}
         {children}
     </section>
 );
@@ -39,7 +39,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
             .filter(l => l.category === listing.category && l.id !== listing.id)
             .sort(() => 0.5 - Math.random()) 
             .slice(0, 4);
-    }, [listings, listing]);
+    }, [listings, listing.id, listing.category]);
 
     useEffect(() => {
         setReviews(listing.reviews || []);
@@ -84,7 +84,13 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
         e.preventDefault();
         if (newRating === 0 || !newComment.trim() || !user) return;
         setIsSubmittingReview(true);
-        const newReview: Review = { id: `r-${Date.now()}`, author: user.name, rating: newRating, comment: newComment.trim(), date: new Date().toISOString().split('T')[0] };
+        const newReview: Review = { 
+            id: `r-${Date.now()}`, 
+            author: user.name, 
+            rating: newRating, 
+            comment: newComment.trim(), 
+            date: new Date().toISOString().split('T')[0] 
+        };
         
         try {
             if(db) {
@@ -112,7 +118,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
 
   return (
     <div className="bg-gray-50 dark:bg-black min-h-screen pb-10 animate-fade-in">
-      {/* 📸 IMAGE CAROUSEL SECTION */}
+      {/* 📸 GALLERY SECTION */}
       <div className="w-full bg-black relative aspect-[4/3] md:aspect-[16/7] overflow-hidden group shadow-lg">
           <img src={images[activeIndex]} alt={listing.title} className="w-full h-full object-contain transition-all duration-300" />
           
@@ -120,13 +126,13 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
               <>
                 <button 
                     onClick={() => setActiveIndex(prev => (prev === 0 ? images.length - 1 : prev - 1))}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 p-3 bg-black/40 text-white rounded-full backdrop-blur-md opacity-100 md:opacity-0 group-hover:opacity-100 transition-all z-20"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 p-3 bg-black/40 text-white rounded-full backdrop-blur-md z-20 active:scale-90 transition-transform"
                 >
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <button 
                     onClick={() => setActiveIndex(prev => (prev === images.length - 1 ? 0 : prev + 1))}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-3 bg-black/40 text-white rounded-full backdrop-blur-md opacity-100 md:opacity-0 group-hover:opacity-100 transition-all z-20"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-3 bg-black/40 text-white rounded-full backdrop-blur-md z-20 active:scale-90 transition-transform"
                 >
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                 </button>
@@ -157,7 +163,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <button 
                     key={idx} 
                     onClick={() => setActiveIndex(idx)}
-                    className={`relative min-w-[70px] h-[70px] rounded-xl overflow-hidden border-2 transition-all ${activeIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-transparent opacity-50'}`}
+                    className={`relative min-w-[70px] h-[70px] rounded-xl overflow-hidden border-2 transition-all ${activeIndex === idx ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-md' : 'border-transparent opacity-50'}`}
                   >
                       <img src={img} className="w-full h-full object-cover" alt="" />
                   </button>
@@ -165,8 +171,8 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
           </div>
       )}
 
-      {/* 💎 PRIMARY INFO */}
-      <SectionWrapper>
+      {/* 💎 PRIMARY INFO & PRICE */}
+      <SectionWrapper className="!pb-2">
           <div className="flex justify-between items-start mb-4">
               <div className="flex-1 pr-4">
                   <h1 className="text-2xl font-black text-gray-900 dark:text-white leading-tight mb-2 tracking-tight">{listing.title}</h1>
@@ -177,11 +183,11 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
               </div>
               <div className="text-right">
                   <div className="text-3xl font-black text-primary dark:text-white mb-0.5 whitespace-nowrap">Rs. {listing.price.toLocaleString()}</div>
-                  {listing.originalPrice && <p className="text-sm text-red-500 line-through font-bold">Rs. {listing.originalPrice.toLocaleString()}</p>}
-                  {discountPercent > 0 && <span className="inline-block mt-1 bg-accent-yellow text-primary text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm uppercase">{discountPercent}% OFF</span>}
+                  {listing.originalPrice && <p className="text-sm text-red-500 line-through font-bold opacity-80">Rs. {listing.originalPrice.toLocaleString()}</p>}
+                  {discountPercent > 0 && <span className="inline-block mt-1 bg-accent-yellow text-primary text-[10px] font-black px-2 py-1 rounded-md shadow-sm uppercase">{discountPercent}% OFF</span>}
               </div>
           </div>
-          <div className="flex items-center justify-between pt-5 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between pt-5 border-t border-gray-50 dark:border-gray-800">
               <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 px-3 py-1.5 rounded-full border dark:border-gray-700">
                   <div className="flex text-accent-yellow text-xs gap-0.5">
                       {[...Array(5)].map((_, i) => (
@@ -194,11 +200,42 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
           </div>
       </SectionWrapper>
 
-      <SectionWrapper title="Overview">
+      {/* 🚀 CALL TO ACTION SECTION - HIGH VISIBILITY POSITION */}
+      <SectionWrapper className="!bg-primary/5 dark:!bg-primary/10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button 
+                onClick={() => { if (!user) { alert("Please login to chat."); return; } onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} 
+                className="flex items-center justify-center gap-3 h-14 bg-white dark:bg-dark-surface text-primary dark:text-white font-black rounded-2xl active:scale-95 transition-all border-2 border-primary shadow-sm"
+              >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                  <span className="text-xs uppercase tracking-widest">CHAT NOW</span>
+              </button>
+
+              <a 
+                href={`https://wa.me/${(vendorData?.phone || listing.contact.whatsapp).replace(/[^0-9]/g, '')}`} 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center justify-center gap-3 h-14 bg-green-600 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-green-600/30"
+              >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.407 3.481 2.239 2.24 3.477 5.23 3.475 8.411-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.394 1.664zm6.222-3.528c1.552.92 3.51 1.405 5.621 1.406 5.543 0 10.054-4.51 10.057-10.055.002-2.686-1.047-5.212-2.952-7.118-1.904-1.905-4.432-2.952-7.118-2.952-5.544 0-10.054 4.51-10.057 10.055-.001 2.112.553 4.17 1.602 5.962l-.999 3.649 3.846-.947zm11.387-5.477c-.31-.156-1.834-.905-2.113-1.006-.279-.101-.482-.151-.684.151-.202.302-.782 1.006-.958 1.207-.176.202-.352.227-.662.071-.31-.156-1.311-.484-2.498-1.543-.923-.824-1.547-1.841-1.728-2.143-.181-.303-.019-.466.136-.621.14-.14.31-.362.466-.543.156-.181.208-.31.31-.517.103-.207.052-.387-.026-.543-.078-.156-.684-1.649-.938-2.261-.247-.597-.499-.516-.684-.525-.176-.008-.378-.009-.58-.009s-.53.076-.807.378c-.278.302-1.061 1.037-1.061 2.531s1.087 2.946 1.239 3.148c.152.202 2.139 3.267 5.182 4.581.724.312 1.288.499 1.728.639.728.231 1.389.198 1.912.12.583-.087 1.834-.751 2.09-1.477.256-.725.256-1.348.179-1.477-.076-.128-.278-.204-.588-.36z"/></svg>
+                  <span className="text-xs uppercase tracking-widest">WHATSAPP</span>
+              </a>
+
+              <a 
+                href={`tel:${vendorData?.phone || listing.contact.phone}`} 
+                className="flex items-center justify-center gap-3 h-14 bg-primary text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-primary/30"
+              >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  <span className="text-xs uppercase tracking-widest">CALL SELLER</span>
+              </a>
+          </div>
+      </SectionWrapper>
+
+      <SectionWrapper title="About This Item">
           <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line font-medium opacity-90">{listing.description}</p>
       </SectionWrapper>
 
-      <SectionWrapper title="The Seller">
+      <SectionWrapper title="Sold By">
           <div className="flex items-center gap-4 cursor-pointer p-4 rounded-3xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 hover:border-primary/40 transition-all active:scale-[0.98]" onClick={() => onNavigate('vendor-profile', { targetVendorId: listing.vendorId })}>
               <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/5 flex items-center justify-center shadow-inner">
                   {vendorData?.profilePictureUrl ? (
@@ -211,51 +248,22 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <h4 className="text-lg font-black text-gray-900 dark:text-white truncate">{vendorData?.shopName || listing.vendorName}</h4>
                   <p className="text-xs text-gray-500 font-bold uppercase tracking-tight">Verified Merchant • Joined {vendorData?.memberSince || '2026'}</p>
                   <div className="text-[10px] text-primary font-black uppercase mt-1.5 flex items-center gap-1 group">
-                      View Showroom 
+                      Visit Storefront 
                       <svg className="w-3 h-3 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
                   </div>
               </div>
           </div>
       </SectionWrapper>
 
-      {/* 🚀 CALL TO ACTION SECTION - MOVED ABOVE REVIEWS AS REQUESTED */}
-      <SectionWrapper title="Take Action">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Chat Button */}
-              <button 
-                onClick={() => { if (!user) { alert("Please login to chat."); return; } onNavigate('chats', { targetUser: { id: listing.vendorId, name: vendorData?.shopName || listing.vendorName } }); }} 
-                className="flex items-center justify-center gap-3 h-14 bg-white dark:bg-gray-800 text-primary dark:text-white font-black rounded-2xl active:scale-95 transition-all border-2 border-primary shadow-sm"
-              >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-                  <span className="text-xs uppercase tracking-widest">START CHAT</span>
-              </button>
-
-              {/* WhatsApp Button */}
-              <a 
-                href={`https://wa.me/${(vendorData?.phone || listing.contact.whatsapp).replace(/[^0-9]/g, '')}`} 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-center gap-3 h-14 bg-green-600 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-green-600/20"
-              >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.407 3.481 2.239 2.24 3.477 5.23 3.475 8.411-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.394 1.664zm6.222-3.528c1.552.92 3.51 1.405 5.621 1.406 5.543 0 10.054-4.51 10.057-10.055.002-2.686-1.047-5.212-2.952-7.118-1.904-1.905-4.432-2.952-7.118-2.952-5.544 0-10.054 4.51-10.057 10.055-.001 2.112.553 4.17 1.602 5.962l-.999 3.649 3.846-.947zm11.387-5.477c-.31-.156-1.834-.905-2.113-1.006-.279-.101-.482-.151-.684.151-.202.302-.782 1.006-.958 1.207-.176.202-.352.227-.662.071-.31-.156-1.311-.484-2.498-1.543-.923-.824-1.547-1.841-1.728-2.143-.181-.303-.019-.466.136-.621.14-.14.31-.362.466-.543.156-.181.208-.31.31-.517.103-.207.052-.387-.026-.543-.078-.156-.684-1.649-.938-2.261-.247-.597-.499-.516-.684-.525-.176-.008-.378-.009-.58-.009s-.53.076-.807.378c-.278.302-1.061 1.037-1.061 2.531s1.087 2.946 1.239 3.148c.152.202 2.139 3.267 5.182 4.581.724.312 1.288.499 1.728.639.728.231 1.389.198 1.912.12.583-.087 1.834-.751 2.09-1.477.256-.725.256-1.348.179-1.477-.076-.128-.278-.204-.588-.36z"/></svg>
-                  <span className="text-xs uppercase tracking-widest">WHATSAPP</span>
-              </a>
-
-              {/* Call Button */}
-              <a 
-                href={`tel:${vendorData?.phone || listing.contact.phone}`} 
-                className="flex items-center justify-center gap-3 h-14 bg-primary text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-primary/30"
-              >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                  <span className="text-xs uppercase tracking-widest">CALL NOW</span>
-              </a>
-          </div>
-      </SectionWrapper>
-
-      {/* 🌟 PROFESSIONAL RATINGS & REVIEWS SECTION */}
-      <SectionWrapper>
-          <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Customer Voices</h3>
+      {/* 🌟 PROFESSIONAL REVIEWS SECTION */}
+      <SectionWrapper title="Customer Feedback">
+          <div className="flex justify-between items-center mb-8 px-1">
+              <div className="text-sm font-bold dark:text-white flex items-center gap-2">
+                  <span className="text-2xl">{listing.rating}</span>
+                  <div className="flex text-accent-yellow text-xs">
+                    {[...Array(5)].map((_, i) => <span key={i}>{i < Math.floor(listing.rating) ? '★' : '☆'}</span>)}
+                  </div>
+              </div>
               {user && user.id !== listing.vendorId && !isReviewFormOpen && (
                   <button onClick={() => setIsReviewFormOpen(true)} className="text-[11px] font-black text-primary bg-primary/5 px-4 py-2 rounded-full border border-primary/10 active:scale-90 transition-transform">WRITE REVIEW</button>
               )}
@@ -263,7 +271,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
 
           {isReviewFormOpen && (
               <div className="mb-10 p-6 bg-white dark:bg-gray-800 rounded-3xl animate-pop-in border-2 border-primary/10 shadow-2xl">
-                  <h4 className="font-black text-lg mb-2 dark:text-white text-center">Share your experience</h4>
+                  <h4 className="font-black text-lg mb-2 dark:text-white text-center">How was your experience?</h4>
                   <div className="flex justify-center gap-3 mb-6">
                       {[1, 2, 3, 4, 5].map((star) => (
                           <button key={star} onClick={() => setNewRating(star)} className={`text-4xl transition-all transform active:scale-150 ${newRating >= star ? 'text-accent-yellow scale-110 drop-shadow-sm' : 'text-gray-200'}`}>
@@ -274,7 +282,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <textarea 
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Tell other buyers what you liked..."
+                    placeholder="Tell other buyers what you liked about this item..."
                     className="w-full p-4 text-sm border-2 border-gray-100 rounded-2xl dark:bg-gray-700 dark:border-gray-600 dark:text-white outline-none focus:border-primary transition-all placeholder:text-gray-400"
                     rows={4}
                   />
@@ -291,23 +299,21 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
               </div>
           )}
 
-          <div className="space-y-8">
+          <div className="space-y-6">
               {reviews.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                       {reviews.map((review, idx) => (
-                          <div key={idx} className="flex gap-4 group">
-                              <div className="w-12 h-12 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center font-black text-primary text-lg shadow-inner">
+                          <div key={idx} className="flex gap-4 p-5 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-700">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center font-black text-primary text-sm shadow-inner">
                                   {review.author.charAt(0)}
                               </div>
-                              <div className="flex-grow pb-6 border-b border-gray-50 dark:border-gray-800">
+                              <div className="flex-grow min-w-0">
                                   <div className="flex justify-between items-start mb-1">
-                                      <span className="font-black text-gray-900 dark:text-white text-sm">{review.author}</span>
-                                      <span className="text-[10px] text-gray-400 font-bold uppercase">{review.date}</span>
+                                      <span className="font-black text-gray-900 dark:text-white text-sm truncate">{review.author}</span>
+                                      <span className="text-[9px] text-gray-400 font-bold uppercase">{review.date}</span>
                                   </div>
-                                  <div className="flex text-accent-yellow text-[10px] mb-3 gap-0.5">
-                                      {[...Array(5)].map((_, i) => (
-                                          <span key={i}>{i < review.rating ? '★' : '☆'}</span>
-                                      ))}
+                                  <div className="flex text-accent-yellow text-[10px] mb-2 gap-0.5">
+                                      {[...Array(5)].map((_, i) => <span key={i}>{i < review.rating ? '★' : '☆'}</span>)}
                                   </div>
                                   <p className="text-gray-700 dark:text-gray-400 text-sm leading-relaxed italic font-medium">"{review.comment}"</p>
                               </div>
@@ -317,7 +323,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
               ) : (
                   <div className="text-center py-16 bg-gray-50/50 dark:bg-gray-900/40 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-800">
                       <div className="text-4xl mb-3 opacity-30">✨</div>
-                      <p className="text-gray-400 font-black text-xs uppercase tracking-widest">No reviews yet. Be the first to share!</p>
+                      <p className="text-gray-400 font-black text-[10px] uppercase tracking-widest">No reviews yet. Be the first to share!</p>
                   </div>
               )}
           </div>
@@ -325,7 +331,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
 
       {/* 🧩 RECOMMENDED LISTINGS SECTION */}
       {relatedListings.length > 0 && (
-          <SectionWrapper title="Discover More In This Category">
+          <SectionWrapper title="You Might Also Like" noBorder>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {relatedListings.map(l => (
                       <ListingCard key={l.id} listing={l} onViewDetails={(item) => onNavigate('details', { listing: item })} />
@@ -338,3 +344,4 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
 };
 
 export default ListingDetailsPage;
+
