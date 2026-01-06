@@ -44,20 +44,7 @@ export interface Listing {
   messages?: number; 
   likes?: number;
   isPromoted?: boolean;
-  status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired' | 'blocked';
-}
-
-export interface ListingReport {
-    id: string;
-    listingId: string;
-    listingTitle: string;
-    listingImageUrl: string;
-    reporterId: string;
-    reporterName: string;
-    reason: string;
-    description: string;
-    createdAt: string;
-    status: 'pending' | 'resolved';
+  status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired';
 }
 
 export interface HomeBanner {
@@ -203,6 +190,7 @@ export interface User {
       totalInvited: number;
       totalEarned: number;
   };
+  // FIX: Added memberSince property to User interface
   memberSince?: string;
   adminNotes?: string; 
   wallet?: {
