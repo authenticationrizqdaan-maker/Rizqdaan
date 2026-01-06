@@ -1,4 +1,3 @@
-
 name: Build Android App
 
 on:
@@ -36,80 +35,28 @@ jobs:
 
       - name: Initialize Android Platform
         run: |
+          # 1. Add the android folder if it doesn't exist
           npx cap add android || true
+          
+          # 2. Prepare the assets folder for the icon generator
+          # The generator looks specifically for an 'assets' or 'resources' folder
           mkdir -p assets
           cp icon.png assets/icon.png || true
           cp icon.png assets/logo.png || true
+          
+          # 3. Sync the project to ensure all native files are mapped
           npx cap sync android
-
-      - name: Hard Patch Gradle (Nuclear Fix)
-        run: |
-          # 1. Create a global init script to FORCE-DISABLE LINT (fixes extractDebugAnnotations error)
-          mkdir -p ~/.gradle
-          cat > ~/.gradle/init.gradle <<EOF
-          allprojects {
-              tasks.whenTaskAdded { task ->
-                  if (task.name.contains('lint') || task.name.contains('Lint') || task.name.contains('extractDebugAnnotations')) {
-                      task.enabled = false
-                  }
-              }
-          }
-          EOF
-
-          # 2. Overwrite Root build.gradle with clean repo order
-          cat > android/build.gradle <<EOF
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.1'
-                  classpath 'com.google.gms:google-services:4.4.0'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          EOF
-
-          # 3. Overwrite settings.gradle to fix dependency resolution blocking
-          cat > android/settings.gradle <<EOF
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          rootProject.name = 'app'
-          include ':app'
-          EOF
-
-          # 4. Set stable build properties
-          echo "org.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8" > android/gradle.properties
-          echo "android.useAndroidX=true" >> android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
-          echo "org.gradle.daemon=false" >> android/gradle.properties
 
       - name: Generate Native Android Icons
         run: |
+          # 4. Generate the actual mipmap files inside the android/ folder
+          # This must happen AFTER 'cap add android'
           npx capacitor-assets generate --android
 
       - name: Inject Android Permissions (GPS & Camera)
         run: |
+          # 5. Inject required permissions into the AndroidManifest.xml
+          # This fixes the GPS issue by declaring the hardware requirement
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />' $MANIFEST_PATH
 
@@ -117,12 +64,12 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug
 
       - name: Build AAB (Release)
         run: |
           cd android
-          ./gradlew bundleRelease --no-daemon --stacktrace
+          ./gradlew bundleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
