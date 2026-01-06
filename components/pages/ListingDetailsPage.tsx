@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Listing, User, Review } from '../../types';
 import { db } from '../../firebaseConfig';
-import { doc, updateDoc, arrayUnion, arrayRemove, increment, getDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, increment, getDoc, setDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import ListingCard from '../common/ListingCard';
 
 interface ListingDetailsPageProps {
@@ -26,6 +26,12 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
     const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
     const [vendorData, setVendorData] = useState<User | null>(null);
+    
+    // Reporting State
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [reportDesc, setReportDesc] = useState('');
+    const [isSubmittingReport, setIsSubmittingReport] = useState(false);
     
     // Carousel State
     const images = useMemo(() => listing.images && listing.images.length > 0 ? listing.images : [listing.imageUrl], [listing]);
@@ -80,6 +86,49 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
         } catch (e) {}
     };
 
+    const handleReportSubmit = async () => {
+        if (!user) { alert("Please login to report a listing."); return; }
+        if (!reportReason) { alert("Please select a reason."); return; }
+        
+        setIsSubmittingReport(true);
+        try {
+            if (db) {
+                // Check for existing report
+                const q = query(collection(db, 'reports'), 
+                    where('listingId', '==', listing.id), 
+                    where('reporterId', '==', user.id)
+                );
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    alert("You have already reported this listing.");
+                    setIsReportModalOpen(false);
+                    return;
+                }
+
+                await addDoc(collection(db, 'reports'), {
+                    listingId: listing.id,
+                    listingTitle: listing.title,
+                    listingImageUrl: listing.imageUrl,
+                    reporterId: user.id,
+                    reporterName: user.name,
+                    reason: reportReason,
+                    description: reportDesc,
+                    createdAt: new Date().toISOString(),
+                    status: 'pending'
+                });
+
+                alert("Thank you. Your report has been submitted to the admin for review.");
+                setIsReportModalOpen(false);
+                setReportReason('');
+                setReportDesc('');
+            }
+        } catch (e: any) {
+            alert("Error submitting report: " + e.message);
+        } finally {
+            setIsSubmittingReport(false);
+        }
+    };
+
     const handleReviewSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newRating === 0 || !newComment.trim() || !user) return;
@@ -117,7 +166,7 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
     const discountPercent = listing.originalPrice ? Math.round(((listing.originalPrice - listing.price) / listing.originalPrice) * 100) : 0;
 
   return (
-    <div className="bg-gray-50 dark:bg-black min-h-screen pb-10 animate-fade-in">
+    <div className="bg-gray-50 dark:bg-black min-h-screen pb-10 animate-fade-in relative">
       {/* 📸 GALLERY SECTION */}
       <div className="w-full bg-black relative aspect-[4/3] md:aspect-[16/7] overflow-hidden group shadow-lg">
           <img src={images[activeIndex]} alt={listing.title} className="w-full h-full object-contain transition-all duration-300" />
@@ -144,6 +193,13 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <div className="flex gap-2">
+                <button 
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="p-2.5 bg-white/20 backdrop-blur-lg rounded-full text-white shadow-xl active:scale-90"
+                    title="Report Listing"
+                >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </button>
                 <button onClick={handleToggleFavorite} className={`p-2.5 bg-white/20 backdrop-blur-lg rounded-full shadow-xl active:scale-90 transition-all ${isFavorite ? 'text-red-500' : 'text-white'}`}>
                     <svg className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                 </button>
@@ -338,6 +394,62 @@ const ListingDetailsPage: React.FC<ListingDetailsPageProps> = ({ listing, listin
                   ))}
               </div>
           </SectionWrapper>
+      )}
+
+      {/* --- REPORT MODAL --- */}
+      {isReportModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-gray-700 animate-pop-in">
+                  <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Report Listing</h3>
+                  <p className="text-sm text-gray-500 mb-6">Your report helps us keep the RizqDaan community safe.</p>
+                  
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Reason for reporting</label>
+                          <select 
+                            value={reportReason} 
+                            onChange={(e) => setReportReason(e.target.value)}
+                            className="w-full p-3.5 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-primary/30 rounded-xl outline-none dark:text-white transition-all text-sm font-medium"
+                          >
+                              <option value="">Select a reason...</option>
+                              <option value="Fake or misleading listing">Fake or misleading listing</option>
+                              <option value="Scam or fraud">Scam or fraud</option>
+                              <option value="Inappropriate content">Inappropriate content</option>
+                              <option value="Duplicate listing">Duplicate listing</option>
+                              <option value="Other">Other</option>
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Additional details (Optional)</label>
+                          <textarea 
+                            value={reportDesc}
+                            onChange={(e) => setReportDesc(e.target.value)}
+                            placeholder="Tell us more (max 250 chars)..."
+                            maxLength={250}
+                            rows={3}
+                            className="w-full p-3.5 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-primary/30 rounded-xl outline-none dark:text-white transition-all text-sm font-medium resize-none"
+                          />
+                      </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-8">
+                      <button 
+                        onClick={() => setIsReportModalOpen(false)}
+                        className="flex-1 py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-500 font-bold rounded-xl active:scale-95 transition-all text-xs uppercase tracking-widest"
+                      >
+                          Cancel
+                      </button>
+                      <button 
+                        onClick={handleReportSubmit}
+                        disabled={isSubmittingReport || !reportReason}
+                        className="flex-[2] py-3.5 bg-red-600 text-white font-black rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50 text-xs uppercase tracking-widest"
+                      >
+                          {isSubmittingReport ? 'Submitting...' : 'Submit Report'}
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );
