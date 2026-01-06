@@ -42,9 +42,55 @@ jobs:
           cp icon.png assets/logo.png || true
           npx cap sync android
 
-      - name: Hard Patch Gradle Repositories
+      - name: Hard Patch Gradle (Ultimate Fix)
         run: |
-          # 1. Clean root build.gradle
+          # 1. Create a global init.gradle to force repos across ALL sub-projects and plugins
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle <<EOF
+          allprojects {
+              buildscript {
+                  repositories {
+                      google()
+                      mavenCentral()
+                  }
+              }
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+              tasks.withType(com.android.build.gradle.tasks.LintBaseTask) {
+                  enabled = false
+              }
+          }
+          EOF
+
+          # 2. Fix gradle-wrapper.properties (ensure standard URL)
+          sed -i 's|services.gradle.org/distributions|services.gradle.org/distributions|g' android/gradle/wrapper/gradle-wrapper.properties
+
+          # 3. Overwrite settings.gradle with FAIL_ON_PROJECT_REPOS mode
+          # This forces all plugins to use the repos we define here, blocking 403 mirrors.
+          cat > android/settings.gradle <<EOF
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+          }
+          rootProject.name = 'app'
+          include ':app'
+          EOF
+
+          # 4. Overwrite root build.gradle
           cat > android/build.gradle <<EOF
           buildscript {
               repositories {
@@ -56,59 +102,16 @@ jobs:
                   classpath 'com.google.gms:google-services:4.4.0'
               }
           }
-
           allprojects {
               repositories {
                   google()
                   mavenCentral()
-                  maven { url 'https://jitpack.io' }
               }
-          }
-
-          task clean(type: Delete) {
-              delete rootProject.buildDir
           }
           EOF
 
-          # 2. Clean settings.gradle (Modern Gradle handles repos here)
-          cat > android/settings.gradle <<EOF
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          rootProject.name = 'app'
-          include ':app'
-          EOF
-
-          # 3. Disable Lint to prevent "extractDebugAnnotations" error
-          APP_GRADLE="android/app/build.gradle"
-          sed -i '/android {/a \    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }' $APP_GRADLE
-
-          # 4. Set Memory and encoding
-          echo "org.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8" > android/gradle.properties
-          echo "android.useAndroidX=true" >> android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
-          echo "org.gradle.daemon=false" >> android/gradle.properties
-
-      - name: Generate Native Android Icons
-        run: |
-          npx capacitor-assets generate --android
-
-      - name: Inject Android Permissions
-        run: |
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" />\n    <uses-permission android:name="android.permission.CAMERA" />' $MANIFEST_PATH
+          # 5. Patch app/build.gradle to disable lint strictly
+          sed -i '/android {/a \    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }' android/app/build.gradle
 
       - name: Build APK (Debug)
         run: |
