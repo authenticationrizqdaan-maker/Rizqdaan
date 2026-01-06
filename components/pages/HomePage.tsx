@@ -35,10 +35,7 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
   
   const displayCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
 
-  // RULE: Filter out BLOCKED listings globally
-  const activeListings = listings.filter(l => l.status !== 'blocked');
-
-  const sortedListings = [...activeListings].sort((a, b) => {
+  const sortedListings = [...listings].sort((a, b) => {
       if (a.isPromoted && !b.isPromoted) return -1;
       if (!a.isPromoted && b.isPromoted) return 1;
       return 0;
@@ -123,6 +120,16 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) onNavigate('listings', { query: searchQuery });
+  };
+
+  const handleApplyFilters = () => {
+      setIsFilterOpen(false);
+      const filterSummary = [];
+      if (locationData.city) filterSummary.push(locationData.city);
+      if (filters.verifiedOnly) filterSummary.push("Verified");
+      if (filters.onSale) filterSummary.push("On Sale");
+      const q = filterSummary.length > 0 ? filterSummary.join(" ") : "All Listings";
+      onNavigate('listings', { query: q });
   };
 
   const locationDisplay = locationData.isGps 
