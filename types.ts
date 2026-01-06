@@ -44,7 +44,20 @@ export interface Listing {
   messages?: number; 
   likes?: number;
   isPromoted?: boolean;
-  status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired';
+  status?: 'active' | 'draft' | 'pending' | 'rejected' | 'sold' | 'expired' | 'blocked';
+}
+
+export interface ListingReport {
+    id: string;
+    listingId: string;
+    listingTitle: string;
+    listingImageUrl: string;
+    reporterId: string;
+    reporterName: string;
+    reason: string;
+    description: string;
+    createdAt: string;
+    status: 'pending' | 'resolved';
 }
 
 export interface HomeBanner {
@@ -67,7 +80,7 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon: string; // Strictly string key to prevent circular reference errors
+  icon: string; 
   subcategories: SubCategory[];
 }
 
@@ -78,7 +91,6 @@ export interface Vendor {
   memberSince: string;
 }
 
-// HELP CENTER TYPES
 export interface HelpCategory {
     id: string;
     title: string;
@@ -96,7 +108,6 @@ export interface HelpTopic {
     isActive: boolean;
 }
 
-// GLOBAL APP SETTINGS
 export interface AppSettings {
     supportWhatsapp: string;
     supportEmail: string;
@@ -107,7 +118,6 @@ export interface AppSettings {
     maintenanceMessage?: string;
 }
 
-// SHARED NAVIGATION TYPES
 export type AppView = 'home' | 'listings' | 'details' | 'vendor-dashboard' | 'auth' | 'account' | 'subcategories' | 'chats' | 'add-listing' | 'my-ads' | 'vendor-analytics' | 'favorites' | 'saved-searches' | 'edit-profile' | 'settings' | 'admin' | 'vendor-profile' | 'promote-business' | 'add-balance' | 'referrals' | 'wallet-history' | 'notifications' | 'help-center';
 
 export interface NavigatePayload {
@@ -190,7 +200,6 @@ export interface User {
       totalInvited: number;
       totalEarned: number;
   };
-  // FIX: Added memberSince property to User interface
   memberSince?: string;
   adminNotes?: string; 
   wallet?: {
