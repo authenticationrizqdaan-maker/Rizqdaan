@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ListingReport } from '../../types';
 import { db } from '../../firebaseConfig';
-import { collection, query, onSnapshot, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 const ManageReports: React.FC = () => {
     const [reports, setReports] = useState<ListingReport[]>([]);
@@ -111,7 +111,6 @@ const ManageReports: React.FC = () => {
                                         <h3 className="font-bold text-lg dark:text-white line-clamp-1">{report.listingTitle}</h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] font-black uppercase text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-md">Reason: {report.reason}</span>
-                                            <span className="text-[10px] text-gray-400">ID: {report.listingId}</span>
                                         </div>
                                     </div>
                                     <div className="text-right">
@@ -133,7 +132,6 @@ const ManageReports: React.FC = () => {
                                         disabled={processingId === report.id}
                                         className="px-4 py-2 bg-yellow-500 text-white font-bold text-xs rounded-lg hover:bg-yellow-600 transition-all flex items-center gap-2"
                                     >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                                         Block Listing
                                     </button>
                                     <button 
@@ -141,7 +139,6 @@ const ManageReports: React.FC = () => {
                                         disabled={processingId === report.id}
                                         className="px-4 py-2 bg-red-600 text-white font-bold text-xs rounded-lg hover:bg-red-700 transition-all flex items-center gap-2"
                                     >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                         Delete Forever
                                     </button>
                                     <div className="flex-grow"></div>
