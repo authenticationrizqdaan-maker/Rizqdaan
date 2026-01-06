@@ -42,25 +42,46 @@ jobs:
           cp icon.png assets/logo.png || true
           npx cap sync android
 
-      - name: Patch Gradle & Fix 403/Lint Errors
+      - name: Patch Gradle Repositories (Fix 403 Forbidden)
         run: |
-          # 1. Force use of MavenCentral and Google repos to avoid 403 Forbidden on mirrors
           ROOT_GRADLE="android/build.gradle"
-          sed -i 's/jcenter()/mavenCentral()/g' $ROOT_GRADLE
           
-          # 2. Disable Lint tasks that are failing (extractDebugAnnotations)
-          # This ensures the build continues even if lint dependencies have issues
-          APP_GRADLE="android/app/build.gradle"
-          echo "
-          android {
-              lintOptions {
-                  checkReleaseBuilds false
-                  abortOnError false
+          # 1. Sabse pehle build.gradle ko clean karein aur repositories ki tarteeb sahi karein
+          # Hum 'google()' ko 'mavenCentral()' se upar rakhenge kyunki AGP dependencies Google par hoti hain
+          cat > $ROOT_GRADLE <<EOF
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
               }
-          }" >> $APP_GRADLE
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.1'
+                  classpath 'com.google.gms:google-services:4.4.0'
+              }
+          }
 
-          # 3. Increase Gradle memory to prevent timeouts
-          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" >> android/gradle.properties
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+          }
+
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOF
+          
+          # 2. Lint errors ko ignore karne ke liye app build.gradle patch karein
+          APP_GRADLE="android/app/build.gradle"
+          if ! grep -q "lintOptions" "$APP_GRADLE"; then
+            sed -i '/android {/a \    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }' $APP_GRADLE
+          fi
+
+          # 3. Memory settings for CI
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> android/gradle.properties
+          echo "org.gradle.daemon=false" >> android/gradle.properties
 
       - name: Generate Native Android Icons
         run: |
@@ -75,12 +96,12 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --stacktrace
 
       - name: Build AAB (Release)
         run: |
           cd android
-          ./gradlew bundleRelease --no-daemon
+          ./gradlew bundleRelease --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
