@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ListingReport } from '../../types';
 import { db } from '../../firebaseConfig';
-import { collection, query, onSnapshot, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 const ManageReports: React.FC = () => {
     const [reports, setReports] = useState<ListingReport[]>([]);
@@ -24,12 +24,12 @@ const ManageReports: React.FC = () => {
         return () => unsubscribe();
     }, []);
 
-    const handleIgnore = async (reportId: string) => {
+    const handleResolve = async (reportId: string) => {
         if (!db) return;
         setProcessingId(reportId);
         try {
             await deleteDoc(doc(db, 'reports', reportId));
-            alert("Report ignored and removed.");
+            alert("Report marked as resolved and removed from list.");
         } catch (e: any) {
             alert("Error: " + e.message);
         } finally {
@@ -39,7 +39,7 @@ const ManageReports: React.FC = () => {
 
     const handleBlockListing = async (report: ListingReport) => {
         if (!db) return;
-        if (!window.confirm("Are you sure you want to BLOCK this listing? it will be hidden from all users.")) return;
+        if (!window.confirm("Are you sure you want to BLOCK this listing? It will be hidden from all users.")) return;
         
         setProcessingId(report.id);
         try {
@@ -47,7 +47,9 @@ const ManageReports: React.FC = () => {
             const listingRef = doc(db, 'listings', report.listingId);
             const reportRef = doc(db, 'reports', report.id);
             
+            // Block listing
             batch.update(listingRef, { status: 'blocked' });
+            // Resolve report
             batch.delete(reportRef);
             
             await batch.commit();
@@ -69,11 +71,13 @@ const ManageReports: React.FC = () => {
             const listingRef = doc(db, 'listings', report.listingId);
             const reportRef = doc(db, 'reports', report.id);
             
+            // Delete listing
             batch.delete(listingRef);
+            // Resolve report
             batch.delete(reportRef);
             
             await batch.commit();
-            alert("Listing has been DELETED permanently.");
+            alert("Listing has been DELETED permanently and report resolved.");
         } catch (e: any) {
             alert("Error: " + e.message);
         } finally {
@@ -143,11 +147,11 @@ const ManageReports: React.FC = () => {
                                     </button>
                                     <div className="flex-grow"></div>
                                     <button 
-                                        onClick={() => handleIgnore(report.id)}
+                                        onClick={() => handleResolve(report.id)}
                                         disabled={processingId === report.id}
                                         className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 font-bold text-xs rounded-lg hover:bg-gray-200 transition-all"
                                     >
-                                        Ignore Report
+                                        Mark as Resolved
                                     </button>
                                 </div>
                             </div>
