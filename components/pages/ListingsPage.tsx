@@ -24,10 +24,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ listings, onNavigate, initi
 
   const filteredListings = listings.filter(listing => {
     const searchTermLower = searchTerm.toLowerCase();
-    
-    // RULE: Always hide blocked listings
-    if (listing.status === 'blocked') return false;
-
     const matchesSearch = searchTermLower === '' ? true : (
       listing.title.toLowerCase().includes(searchTermLower) ||
       listing.description.toLowerCase().includes(searchTermLower) ||
