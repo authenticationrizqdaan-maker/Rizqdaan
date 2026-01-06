@@ -80,15 +80,8 @@ export interface SubCategory {
 export interface Category {
   id: string;
   name: string;
-  icon: string; 
+  icon?: any; 
   subcategories: SubCategory[];
-}
-
-export interface Vendor {
-  id: string;
-  name: string;
-  profilePictureUrl: string;
-  memberSince: string;
 }
 
 export interface HelpCategory {
@@ -128,6 +121,18 @@ export interface NavigatePayload {
   targetVendorId?: string;
 }
 
+export interface Transaction {
+  id: string;
+  type: 'deposit' | 'withdrawal' | 'adjustment' | 'bonus' | 'penalty' | 'fee' | 'commission' | 'promotion' | 'referral_bonus';
+  amount: number;
+  date: string;
+  status: 'completed' | 'pending' | 'failed';
+  description?: string;
+  userId?: string; 
+  userName?: string;
+}
+
+// Added WithdrawalRequest to fix ManageFinance.tsx error
 export interface WithdrawalRequest {
   id: string;
   userId: string;
@@ -155,25 +160,29 @@ export interface DepositRequest {
     adminNote?: string;
 }
 
+// Added Vendor to fix constants.tsx error
+export interface Vendor {
+  id: string;
+  name: string;
+  profilePictureUrl: string;
+  memberSince: string;
+}
+
+// Added PaymentInfo to fix ManageFinance.tsx and AddFundsPage.tsx errors
 export interface PaymentInfo {
     bankName: string;
     accountTitle: string;
     accountNumber: string;
     instructions?: string;
-    customNote?: string; 
+    customNote?: string;
 }
 
-export interface PromotionRequest {
-    id: string;
-    vendorId: string;
-    vendorName: string;
-    shopName: string;
-    service: string;
-    priceString: string;
-    contact?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    createdAt: string;
-    approvedAt?: string;
+// Added ReferralSettings to fix ReferralPage.tsx and ManageReferrals.tsx errors
+export interface ReferralSettings {
+    inviterBonus: number;
+    inviteeBonus: number;
+    badgeThreshold: number;
+    isActive: boolean;
 }
 
 export interface User {
@@ -184,7 +193,6 @@ export interface User {
   phone: string;
   shopName: string;
   shopAddress: string;
-  googleId?: string;
   isVerified: boolean;
   isBanned?: boolean; 
   isAdmin?: boolean;
@@ -201,7 +209,6 @@ export interface User {
       totalEarned: number;
   };
   memberSince?: string;
-  adminNotes?: string; 
   wallet?: {
     balance: number;
     totalSpend: number;
@@ -233,24 +240,6 @@ export interface ChatConversation {
   participantNames: Record<string, string>; 
   participantPics?: Record<string, string>; 
   unreadCounts: Record<string, number>;
-}
-
-export interface Transaction {
-  id: string;
-  type: 'deposit' | 'withdrawal' | 'adjustment' | 'bonus' | 'penalty' | 'fee' | 'commission' | 'promotion' | 'referral_bonus';
-  amount: number;
-  date: string;
-  status: 'completed' | 'pending' | 'failed';
-  description?: string;
-  userId?: string; 
-  userName?: string;
-}
-
-export interface ReferralSettings {
-    inviterBonus: number; 
-    inviteeBonus: number; 
-    badgeThreshold: number; 
-    isActive: boolean;
 }
 
 export interface AdCampaign {
