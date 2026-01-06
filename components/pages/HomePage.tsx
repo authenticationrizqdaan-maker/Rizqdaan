@@ -1,15 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CATEGORIES as DEFAULT_CATEGORIES, PAKISTAN_LOCATIONS, ICONS } from '../../constants';
+import { CATEGORIES as DEFAULT_CATEGORIES, PAKISTAN_LOCATIONS, renderIconByKey } from '../../constants';
 import { Listing, Category, HomeBanner } from '../../types';
 import ListingCard from '../common/ListingCard';
 import { db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { Geolocation } from '@capacitor/geolocation';
 
 interface HomePageProps {
   listings: Listing[];
-  categories?: Category[];
+  categories?: Category[]; 
   onNavigate: (view: 'listings' | 'details' | 'subcategories', payload?: { listing?: Listing; category?: Category; query?: string }) => void;
   onSaveSearch: (query: string) => void;
 }
@@ -33,9 +32,13 @@ const DEFAULT_BANNERS: HomeBanner[] = [
 const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNavigate, onSaveSearch }) => {
   const [banners, setBanners] = useState<HomeBanner[]>(DEFAULT_BANNERS);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  
   const displayCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
 
-  const sortedListings = [...listings].sort((a, b) => {
+  // RULE: Filter out BLOCKED listings globally
+  const activeListings = listings.filter(l => l.status !== 'blocked');
+
+  const sortedListings = [...activeListings].sort((a, b) => {
       if (a.isPromoted && !b.isPromoted) return -1;
       if (!a.isPromoted && b.isPromoted) return 1;
       return 0;
@@ -57,20 +60,25 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
       onSale: false
   });
   const [gpsLoading, setGpsLoading] = useState(false);
+
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   useEffect(() => {
       if (!db) return;
       const q = query(collection(db, 'banners'), where('isActive', '==', true));
+      
       const unsub = onSnapshot(q, (snap) => {
           let fetchedBanners = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as HomeBanner));
+          
           if (fetchedBanners.length > 0) {
               fetchedBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
               setBanners(fetchedBanners);
           } else {
               setBanners(DEFAULT_BANNERS);
           }
+      }, (err) => {
+          console.error("Banners fetch error:", err.message);
       });
       return () => unsub();
   }, []);
@@ -112,62 +120,10 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
       else onNavigate('listings', { query: banner.link });
   };
 
-  const loadMoreListings = useCallback(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      const newItems = shuffleArray([...remainingListings]).slice(0, 4);
-      setRandomListings(prev => [...prev, ...newItems]);
-      setIsLoading(false);
-    }, 700);
-  }, [remainingListings]);
-
-  const handleScroll = useCallback(() => {
-    if (window.innerHeight + document.documentElement.scrollTop + 200 >= document.documentElement.scrollHeight && !isLoading) {
-      loadMoreListings();
-    }
-  }, [isLoading, loadMoreListings]);
-  
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) onNavigate('listings', { query: searchQuery });
   };
-
-  const handleGetLocation = async () => {
-      setGpsLoading(true);
-      try {
-          const coordinates = await Geolocation.getCurrentPosition();
-          setLocationData({ province: '', city: '', isGps: true });
-          // Future expansion: Reverse geocode coordinates to City/Province
-      } catch (err) {
-          console.error("Geolocation error", err);
-          alert("Could not get location. Please enable GPS and allow permissions.");
-      } finally {
-          setGpsLoading(false);
-      }
-  };
-
-  const handleApplyFilters = () => {
-      setIsFilterOpen(false);
-      const filterSummary = [];
-      if (locationData.city) filterSummary.push(locationData.city);
-      if (filters.verifiedOnly) filterSummary.push("Verified");
-      if (filters.onSale) filterSummary.push("On Sale");
-      const query = filterSummary.length > 0 ? filterSummary.join(" ") : "All Listings";
-      onNavigate('listings', { query });
-  };
-
-  const renderIcon = (icon: any) => {
-      if (React.isValidElement(icon)) return icon;
-      if (typeof icon === 'string' && ICONS[icon as keyof typeof ICONS]) {
-          return ICONS[icon as keyof typeof ICONS];
-      }
-      return <svg className="w-full h-full" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>;
-  };
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
 
   const locationDisplay = locationData.isGps 
     ? "📍 Current Location" 
@@ -225,6 +181,7 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
                       ) : (
                           <div className={`absolute inset-0 bg-gradient-to-r ${banner.color} z-0`}></div>
                       )}
+
                       <div className="z-10 max-w-[65%]">
                           {banner.title && (
                               <>
@@ -234,17 +191,15 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
                           )}
                           {banner.subtitle && <p className="text-xs md:text-sm font-medium opacity-90 mb-3 drop-shadow-sm">{banner.subtitle}</p>}
                       </div>
-                      {!banner.imageUrl && <div className="text-[60px] md:text-[100px] opacity-20 absolute right-2 md:right-10 rotate-12 pointer-events-none select-none z-10">{banner.icon}</div>}
+                      
+                      {!banner.imageUrl && (
+                          <div className="text-[60px] md:text-[100px] opacity-20 absolute right-2 md:right-10 rotate-12 pointer-events-none select-none z-10">
+                            {banner.icon}
+                          </div>
+                      )}
                   </div>
               ))}
           </div>
-          {banners.length > 1 && (
-            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
-                {banners.map((_, index) => (
-                    <button key={index} onClick={() => setCurrentBannerIndex(index)} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${index === currentBannerIndex ? 'bg-white w-4' : 'bg-white/50'}`} />
-                ))}
-            </div>
-          )}
       </div>
 
       <div>
@@ -259,7 +214,9 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
               onClick={() => onNavigate('subcategories', { category })}
               className="group flex flex-col items-center p-1.5 bg-white dark:bg-dark-surface rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer text-center border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
             >
-              <div className="h-8 w-8 flex items-center justify-center text-primary dark:text-gray-200 mb-1">{renderIcon(category.icon)}</div>
+              <div className="h-8 w-8 flex items-center justify-center text-primary dark:text-gray-200 mb-1">
+                {renderIconByKey(category.icon)}
+              </div>
               <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 leading-tight line-clamp-1">{category.name}</span>
             </div>
           ))}
@@ -289,39 +246,7 @@ const HomePage: React.FC<HomePageProps> = ({ listings, categories = [], onNaviga
         </div>
       </div>
       
-      {isLoading && (
-        <div className="flex justify-center items-center py-4">
-          <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div>
-        </div>
-      )}
-
-      {isFilterOpen && (
-          <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsFilterOpen(false)}></div>
-              <div className="relative bg-white dark:bg-dark-surface w-full md:w-[400px] md:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[80vh] animate-slide-up">
-                  <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700">
-                      <h3 className="text-base font-bold text-gray-800 dark:text-white">Filter & Sort</h3>
-                      <button onClick={() => setIsFilterOpen(false)} className="text-gray-500">✕</button>
-                  </div>
-                  <div className="p-4 space-y-4 overflow-y-auto">
-                      <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Location</label>
-                          <button onClick={handleGetLocation} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm mb-2 bg-gray-50 text-gray-700">
-                              {gpsLoading ? 'Locating...' : '📍 Use Current Location'}
-                          </button>
-                          <select className="w-full p-2 bg-gray-50 border rounded-lg text-sm" value={locationData.province} onChange={(e) => setLocationData({ ...locationData, province: e.target.value, city: '' })}>
-                              <option value="">Select Province</option>
-                              {Object.keys(PAKISTAN_LOCATIONS).map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
-                      </div>
-                  </div>
-                  <div className="p-4 border-t border-gray-100 flex gap-2">
-                      <button onClick={() => { setLocationData({province:'', city:'', isGps:false}); setFilters({verifiedOnly:false, freeDelivery:false, openNow:false, onSale:false}); }} className="flex-1 py-2.5 text-gray-600 font-medium border rounded-lg text-sm">Reset</button>
-                      <button onClick={handleApplyFilters} className="flex-[2] py-2.5 bg-primary text-white font-bold rounded-lg text-sm">Show Results</button>
-                  </div>
-              </div>
-          </div>
-      )}
+      {isLoading && <div className="flex justify-center items-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div></div>}
     </div>
   );
 };
